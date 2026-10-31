@@ -12,7 +12,7 @@ public sealed class Product : AggregateRoot
     public const int DescriptionMaxLength = 2000;
 
     public Guid Id { get; private set; }
-    public Sku Sku { get; private set; } = null!;
+    public string Sku { get; private set; } = null!;
     public string Name { get; private set; } = null!;
     public string? Description { get; private set; }
     public Guid CategoryId { get; private set; }
@@ -31,19 +31,19 @@ public sealed class Product : AggregateRoot
         var product = new Product
         {
             Id = Guid.CreateVersion7(now),
-            Sku = sku,
+            Sku = sku.Value,
             IsActive = true,
             CreatedAt = now,
         };
         product.Apply(name, description, categoryId, price, now);
-        product.Raise(new ProductCreated(product.Id, sku.Value, product.Name, now));
+        product.Raise(new ProductCreated(product.Id, product.Sku, product.Name, now));
         return product;
     }
 
     public void UpdateDetails(string name, string? description, Guid categoryId, Money price, DateTimeOffset now)
     {
         Apply(name, description, categoryId, price, now);
-        Raise(new ProductUpdated(Id, Sku.Value, Name, now));
+        Raise(new ProductUpdated(Id, Sku, Name, now));
     }
 
     public void Deactivate(DateTimeOffset now)
@@ -55,7 +55,7 @@ public sealed class Product : AggregateRoot
 
         IsActive = false;
         UpdatedAt = now;
-        Raise(new ProductDeactivated(Id, Sku.Value, Name, now));
+        Raise(new ProductDeactivated(Id, Sku, Name, now));
     }
 
     public void Reactivate(DateTimeOffset now)
@@ -67,7 +67,7 @@ public sealed class Product : AggregateRoot
 
         IsActive = true;
         UpdatedAt = now;
-        Raise(new ProductUpdated(Id, Sku.Value, Name, now));
+        Raise(new ProductUpdated(Id, Sku, Name, now));
     }
 
     private void Apply(string name, string? description, Guid categoryId, Money price, DateTimeOffset now)

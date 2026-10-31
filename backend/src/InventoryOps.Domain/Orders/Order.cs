@@ -140,6 +140,8 @@ public sealed class Order : AggregateRoot
         return order;
     }
 
+    public static IReadOnlyList<OrderStatus> AllowedTransitionsFrom(OrderStatus status) => AllowedTransitions[status];
+
     public bool CanTransitionTo(OrderStatus target) => AllowedTransitions[Status].Contains(target);
 
     public void StartProcessing(string performedBy, DateTimeOffset now)

@@ -44,7 +44,8 @@ dotnet_naming_style.underscore_camel.capitalization = camel_case
 dotnet_naming_style.underscore_camel.required_prefix = _
 
 # Analyzer tuning (each suppression is deliberate)
-# CA1848: LoggerMessage delegates add ceremony; structured templates are used everywhere instead.
+# CA1848/CA1873: LoggerMessage delegates add ceremony; logging happens on rare warning/error paths only.
+dotnet_diagnostic.CA1873.severity = suggestion
 dotnet_diagnostic.CA1848.severity = none
 # CA1711/CA1716/CA1720: domain names such as "Order", "Shared" and "Ensure" are intentional.
 dotnet_diagnostic.CA1716.severity = none
@@ -80,3 +81,8 @@ dotnet_diagnostic.CA2000.severity = none
 dotnet_diagnostic.CA1001.severity = none
 dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.CA5394.severity = none
+
+# EF Core migrations are generated code: exclude them from analyzers and style rules.
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
