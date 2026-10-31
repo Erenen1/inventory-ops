@@ -1,0 +1,20 @@
+# Optional development overlay: exposes infrastructure on the loopback interface only, so the API
+# can run from an IDE (dotnet run) and SQL/RabbitMQ can be inspected.
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d sqlserver redis rabbitmq
+services:
+  sqlserver:
+    networks: [backend, devtools]
+    ports:
+      - "127.0.0.1:14333:1433"
+  redis:
+    networks: [backend, devtools]
+    ports:
+      - "127.0.0.1:16379:6379"
+  rabbitmq:
+    networks: [backend, devtools]
+    ports:
+      - "127.0.0.1:15672:5672"
+      - "127.0.0.1:15673:15672" # management UI
+
+networks:
+  devtools: {}

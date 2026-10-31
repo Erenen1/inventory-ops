@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/TestResults/
+.git/
+.env
+.env.*
+!.env.example
+frontend/
+docs/
+backend/tests/
+*.md

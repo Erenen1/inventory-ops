@@ -1,0 +1,147 @@
+# InventoryOps local stack: one backend deployable (api + one-shot migrator from the same image),
+# the SPA served by nginx, and the supporting infrastructure. Only the frontend port is published,
+# on the loopback interface by default. Development-only ports live in compose.dev.yaml.
+name: inventoryops
+
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  DOTNET_gcServer: "0"
+  Serilog__UseJson: "true"
+  RabbitMq__Host: rabbitmq
+  RabbitMq__UserName: inventoryops
+  RabbitMq__Password: ${RABBITMQ_PASSWORD:?run scripts/bootstrap first}
+
+services:
+  sqlserver:
+    # SQL Server 2022 Developer Edition: free for development and testing only, not licensed for production.
+    # The image is linux/amd64 only (runs under emulation on Apple Silicon; see docs/DEPLOYMENT.md).
+    image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:?run scripts/bootstrap first}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.12-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?run scripts/bootstrap first}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.1.8-management-alpine
+    hostname: rabbitmq # stable node name so durable queues survive container re-creation
+    environment:
+      RABBITMQ_DEFAULT_USER: inventoryops
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?run scripts/bootstrap first}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  migrator:
+    image: inventoryops-api:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["migrate"]
+    environment:
+      <<: *api-environment
+      ConnectionStrings__DatabaseAdmin: "Server=sqlserver;Database=InventoryOps;User Id=sa;Password=${SQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+      Bootstrap__AppDbLogin: inventoryops_app
+      Bootstrap__AppDbPassword: ${SQL_APP_PASSWORD:?run scripts/bootstrap first}
+      Bootstrap__AdminEmail: ${ADMIN_EMAIL:?run scripts/bootstrap first}
+      Bootstrap__AdminPassword: ${ADMIN_PASSWORD:?run scripts/bootstrap first}
+      Bootstrap__SeedDemoData: ${SEED_DEMO_DATA:-false}
+      Bootstrap__DemoManagerEmail: ${DEMO_MANAGER_EMAIL:-}
+      Bootstrap__DemoManagerPassword: ${DEMO_MANAGER_PASSWORD:-}
+      Bootstrap__DemoViewerEmail: ${DEMO_VIEWER_EMAIL:-}
+      Bootstrap__DemoViewerPassword: ${DEMO_VIEWER_PASSWORD:-}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks: [backend]
+    restart: "no"
+
+  api:
+    image: inventoryops-api:local
+    environment:
+      <<: *api-environment
+      ConnectionStrings__Database: "Server=sqlserver;Database=InventoryOps;User Id=inventoryops_app;Password=${SQL_APP_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+      ConnectionStrings__Redis: "redis:6379,password=${REDIS_PASSWORD}"
+      ForwardedHeaders__KnownNetworks__0: 172.30.10.0/24
+      # Local stack is served over plain HTTP on localhost. Set to true behind TLS.
+      Security__RequireHttpsCookies: ${REQUIRE_HTTPS_COOKIES:-false}
+      OpenApi__Enabled: ${OPENAPI_ENABLED:-true}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [backend, edge]
+    healthcheck:
+      test: ["CMD", "dotnet", "InventoryOps.Api.dll", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    image: inventoryops-frontend:local
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-3000}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  # Infrastructure is reachable only from the API/migrator, never from the edge network.
+  backend:
+    internal: true
+  edge:
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+
+volumes:
+  sqlserver-data:
+  redis-data:
+  rabbitmq-data:
