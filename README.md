@@ -1,74 +1,74 @@
 # InventoryOps
 
-InventoryOps is a full-stack inventory and order management system for a small or medium-sized business. Staff maintain a product catalog, receive and adjust stock, take customer orders that **reserve stock atomically**, and process those orders through to fulfilment, while an asynchronous activity feed records what happened.
+InventoryOps, küçük ve orta ölçekli bir işletme için geliştirilmiş full-stack bir stok ve sipariş yönetim sistemidir. Çalışanlar ürün kataloğunu yönetir, stok girişi ve düzeltmesi yapar, stoğu **atomik olarak rezerve eden** müşteri siparişleri oluşturur ve bu siparişleri sevkiyata kadar ilerletir. Bu sırada asenkron bir aktivite akışı neler olduğunu kaydeder.
 
-It is a portfolio project built to show how a **.NET modular monolith** handles the hard parts of this domain: stock that must never be oversold under concurrency, reliable event publishing (transactional outbox), idempotent consumers, cache-aside reads with safe invalidation, cookie-based authentication with CSRF protection, and a reproducible Docker environment, all covered by automated tests against real infrastructure.
+Proje, bir **.NET modüler monolitin** bu alanın zor kısımlarını nasıl ele aldığını göstermek için hazırlanmış bir portföy çalışmasıdır: eşzamanlı isteklerde stoğun asla fazla satılmaması, güvenilir olay yayınlama (transactional outbox), idempotent tüketiciler, güvenli invalidation ile cache-aside okumalar, CSRF korumalı cookie tabanlı kimlik doğrulama ve tekrarlanabilir bir Docker ortamı. Bunların tamamı gerçek altyapıya karşı çalışan otomatik testlerle doğrulanır.
 
-**Scope.** Catalog, inventory, orders, dashboard, activity feed and user/role administration. Orders are operational (reserve → ship); there are no payments, invoices, tax, shipping carriers or multi-warehouse stock. See [Limitations](#20-limitations-and-future-improvements).
+**Kapsam.** Katalog, stok, siparişler, dashboard, aktivite akışı ve kullanıcı/rol yönetimi. Siparişler operasyoneldir (rezerve et → sevk et); ödeme, fatura, vergi, kargo entegrasyonu veya çoklu depo yoktur. Bkz. [Kısıtlar](#20-kısıtlar-ve-gelecek-iyileştirmeler).
 
-## Contents
+## İçindekiler
 
-1. [Screenshots](#2-screenshots) · 2. [Technology stack](#3-technology-stack) · 3. [Features](#4-features) · 4. [System architecture](#5-system-architecture) · 5. [Architecture decisions](#6-architecture-decisions) · 6. [Project structure](#7-project-structure) · 7. [Database design](#8-database-design) · 8. [Order lifecycle](#9-order-lifecycle) · 9. [RabbitMQ and the outbox](#10-rabbitmq-and-the-transactional-outbox) · 10. [Redis strategy](#11-redis-strategy) · 11. [Security](#12-security-architecture) · 12. [API](#13-api-documentation) · 13. [Docker setup](#14-docker-setup) · 14. [Testing](#15-testing) · 15. [CI](#16-ci-pipeline) · 16. [Observability](#17-observability) · 17. [Performance and reliability](#18-performance-and-reliability) · 18. [Trade-offs](#19-engineering-trade-offs) · 19. [Limitations](#20-limitations-and-future-improvements) · 20. [License](#21-license)
+1. [Ekran görüntüleri](#2-ekran-görüntüleri) · 2. [Teknoloji yığını](#3-teknoloji-yığını) · 3. [Özellikler](#4-özellikler) · 4. [Sistem mimarisi](#5-sistem-mimarisi) · 5. [Mimari kararlar](#6-mimari-kararlar) · 6. [Proje yapısı](#7-proje-yapısı) · 7. [Veritabanı tasarımı](#8-veritabanı-tasarımı) · 8. [Sipariş yaşam döngüsü](#9-sipariş-yaşam-döngüsü) · 9. [RabbitMQ ve outbox](#10-rabbitmq-ve-transactional-outbox) · 10. [Redis stratejisi](#11-redis-stratejisi) · 11. [Güvenlik](#12-güvenlik-mimarisi) · 12. [API](#13-api-dokümantasyonu) · 13. [Docker kurulumu](#14-docker-kurulumu) · 14. [Testler](#15-testler) · 15. [CI](#16-ci-pipeline) · 16. [Gözlemlenebilirlik](#17-gözlemlenebilirlik) · 17. [Performans ve güvenilirlik](#18-performans-ve-güvenilirlik) · 18. [Ödünleşimler](#19-mühendislik-ödünleşimleri) · 19. [Kısıtlar](#20-kısıtlar-ve-gelecek-iyileştirmeler) · 20. [Lisans](#21-lisans)
 
-Detailed documents: [Architecture](docs/ARCHITECTURE.md) · [Database](docs/DATABASE.md) · [Security](docs/SECURITY.md) · [Testing](docs/TESTING.md) · [Deployment](docs/DEPLOYMENT.md) · [ADRs](docs/adr/)
+Ayrıntılı dokümanlar (İngilizce): [Mimari](docs/ARCHITECTURE.md) · [Veritabanı](docs/DATABASE.md) · [Güvenlik](docs/SECURITY.md) · [Testler](docs/TESTING.md) · [Dağıtım](docs/DEPLOYMENT.md) · [ADR'ler](docs/adr/)
 
 ---
 
-## 2. Screenshots
+## 2. Ekran görüntüleri
 
-All screenshots are captured by Playwright (`frontend/e2e/screenshots.spec.ts`) from the running Docker stack with the deterministic demo dataset.
+Tüm ekran görüntüleri, çalışan Docker ortamından ve deterministik demo verisiyle Playwright tarafından alınmıştır (`frontend/e2e/screenshots.spec.ts`).
 
 | | |
 |---|---|
-| ![Overview dashboard](docs/screenshots/dashboard.png) **Overview** – backend-computed metrics, orders per day, status breakdown, low-stock list and the event-driven activity feed. | ![Products](docs/screenshots/products.png) **Products** – server-side search, filters, allow-listed sorting and pagination, with live available/reserved stock. |
-| ![Inventory](docs/screenshots/inventory.png) **Inventory** – on hand, reserved and available quantities with reorder thresholds and stock adjustments. | ![Orders](docs/screenshots/orders.png) **Orders** – status filter, search by customer or order number. |
-| ![Order details](docs/screenshots/order-details.png) **Order details** – price-snapshot lines, status history and only the transitions the state machine allows. | ![Create order](docs/screenshots/create-order.png) **New order** – multi-line entry with availability feedback; stock is reserved on submit. |
-| ![Activity](docs/screenshots/activity.png) **Activity** – entries projected asynchronously from RabbitMQ events. | ![Mobile](docs/screenshots/mobile-dashboard.png) **Mobile** – responsive layout with a navigation drawer. |
+| ![Genel bakış](docs/screenshots/dashboard.png) **Genel bakış** – backend'de hesaplanan metrikler, günlük sipariş grafiği, durum dağılımı, düşük stok listesi ve olay tabanlı aktivite akışı. | ![Ürünler](docs/screenshots/products.png) **Ürünler** – sunucu tarafında arama, filtre, izin listesiyle sınırlı sıralama ve sayfalama; canlı kullanılabilir/rezerve stok. |
+| ![Stok](docs/screenshots/inventory.png) **Stok** – eldeki, rezerve ve kullanılabilir miktarlar, yeniden sipariş eşikleri ve stok düzeltmeleri. | ![Siparişler](docs/screenshots/orders.png) **Siparişler** – durum filtresi, müşteri veya sipariş numarasıyla arama. |
+| ![Sipariş detayı](docs/screenshots/order-details.png) **Sipariş detayı** – fiyat anlık görüntülü satırlar, durum geçmişi ve yalnızca durum makinesinin izin verdiği geçişler. | ![Yeni sipariş](docs/screenshots/create-order.png) **Yeni sipariş** – stok durumu geri bildirimli çok satırlı giriş; stok, gönderimde rezerve edilir. |
+| ![Aktivite](docs/screenshots/activity.png) **Aktivite** – RabbitMQ olaylarından asenkron olarak üretilen kayıtlar. | ![Mobil](docs/screenshots/mobile-dashboard.png) **Mobil** – navigasyon çekmeceli responsive düzen. |
 
-## 3. Technology stack
+## 3. Teknoloji yığını
 
-| Area | Technology | Purpose |
+| Alan | Teknoloji | Amaç |
 |---|---|---|
-| Backend | .NET 10, ASP.NET Core minimal APIs, C# with nullable reference types | Single deployable API with module-based use cases |
-| Validation | FluentValidation | Request/command validation returning field-level errors |
-| Identity | ASP.NET Core Identity, cookie authentication, antiforgery | Password hashing, lockout, roles, sessions, CSRF |
-| Logging | Serilog (JSON in containers), correlation ids | Structured logs that can be followed across HTTP and messaging |
-| API docs | Microsoft.AspNetCore.OpenApi + Scalar UI | OpenAPI 3 document and interactive reference |
-| Database | SQL Server 2022 (Developer Edition locally), EF Core 10 | Source of truth, transactions, constraints, migrations |
-| Caching | Redis 7.4, StackExchange.Redis | Cache-aside for read-heavy, low-volatility queries |
-| Messaging | RabbitMQ 4.1 (quorum queues), RabbitMQ.Client 7 | Asynchronous integration events via a transactional outbox |
-| Frontend | React 19, TypeScript (strict), Vite 7, React Router 7 | SPA for daily operations |
-| Frontend data/forms | TanStack Query 5, React Hook Form, Zod 4 | Server-state caching/invalidation; typed forms with client-side validation |
-| UI | Tailwind CSS 4, Radix UI primitives (shadcn-style components), Lucide, Recharts, Sonner | Accessible dialogs/menus, consistent design system, dashboard chart, toasts |
-| Infrastructure | Docker, Docker Compose, nginx (unprivileged) | Reproducible local stack; same-origin reverse proxy |
-| Testing | xUnit v3, Shouldly, Testcontainers, NetArchTest, Vitest + Testing Library, Playwright | Unit, integration (real SQL Server/Redis/RabbitMQ), architecture, component and E2E tests |
-| CI | GitHub Actions | Format, analyzers, tests, vulnerability scans, image builds |
+| Backend | .NET 10, ASP.NET Core minimal API, nullable reference types ile C# | Modül tabanlı use case'lere sahip tek dağıtılabilir API |
+| Doğrulama | FluentValidation | Alan bazında hata dönen komut/istek doğrulaması |
+| Kimlik | ASP.NET Core Identity, cookie authentication, antiforgery | Parola hash'leme, hesap kilitleme, roller, oturumlar, CSRF |
+| Loglama | Serilog (container'da JSON), correlation id'ler | HTTP ve mesajlaşma boyunca takip edilebilen yapısal loglar |
+| API dokümanı | Microsoft.AspNetCore.OpenApi + Scalar UI | OpenAPI 3 dokümanı ve etkileşimli referans |
+| Veritabanı | SQL Server 2022 (yerelde Developer Edition), EF Core 10 | Doğruluk kaynağı, transaction'lar, kısıtlar, migration'lar |
+| Cache | Redis 7.4, StackExchange.Redis | Sık okunan, az değişen sorgular için cache-aside |
+| Mesajlaşma | RabbitMQ 4.1 (quorum queue), RabbitMQ.Client 7 | Transactional outbox üzerinden asenkron entegrasyon olayları |
+| Frontend | React 19, TypeScript (strict), Vite 7, React Router 7 | Günlük operasyonlar için SPA |
+| Frontend veri/form | TanStack Query 5, React Hook Form, Zod 4 | Sunucu state cache/invalidation; istemci tarafı doğrulamalı tipli formlar |
+| UI | Tailwind CSS 4, Radix UI primitive'leri (shadcn tarzı bileşenler), Lucide, Recharts, Sonner | Erişilebilir dialog/menüler, tutarlı tasarım sistemi, dashboard grafiği, bildirimler |
+| Altyapı | Docker, Docker Compose, nginx (yetkisiz kullanıcı) | Tekrarlanabilir yerel ortam; aynı origin reverse proxy |
+| Test | xUnit v3, Shouldly, Testcontainers, NetArchTest, Vitest + Testing Library, Playwright | Unit, entegrasyon (gerçek SQL Server/Redis/RabbitMQ), mimari, bileşen ve E2E testleri |
+| CI | GitHub Actions | Format, analyzer'lar, testler, zafiyet taramaları, imaj derlemeleri |
 
-## 4. Features
+## 4. Özellikler
 
-**Implemented**
+**Tamamlananlar**
 
-- **Identity & access** – sign-in with HttpOnly session cookie, logout, session expiry handling in the UI, roles *Admin / Manager / Viewer*, admin user management (create, change role, deactivate), account lockout, login rate limiting.
-- **Catalog** – create/edit/deactivate/reactivate products, unique SKUs, decimal prices with currency, search by name or SKU, filters, sorting, server-side pagination, categories.
-- **Inventory** – on hand / reserved / available per product, stock adjustments with reasons and notes, reorder thresholds and low-stock flags, immutable stock-movement history.
-- **Orders** – multi-line orders with price snapshots, atomic stock reservation, idempotent submission, processing, fulfilment (consumes reservations), cancellation (releases reservations), status history.
-- **Dashboard** – active/low-stock/out-of-stock counts, stock totals, orders by status, orders per day, recent orders, fulfilled order value (explicitly *not* revenue).
-- **Activity feed** – human-readable events projected asynchronously from RabbitMQ messages.
-- **Operational** – health/readiness checks, structured logs with correlation ids, OpenAPI documentation, one-command Docker environment with demo data.
+- **Kimlik ve erişim** – HttpOnly oturum cookie'si ile giriş, çıkış, arayüzde oturum süresinin dolmasının ele alınması, *Admin / Manager / Viewer* rolleri, admin kullanıcı yönetimi (oluşturma, rol değiştirme, pasifleştirme), hesap kilitleme, giriş rate limit'i.
+- **Katalog** – ürün oluşturma/düzenleme/pasifleştirme/yeniden aktifleştirme, benzersiz SKU'lar, para birimli decimal fiyatlar, ad veya SKU ile arama, filtreler, sıralama, sunucu tarafı sayfalama, kategoriler.
+- **Stok** – ürün başına eldeki / rezerve / kullanılabilir miktar, gerekçe ve notlu stok düzeltmeleri, yeniden sipariş eşikleri ve düşük stok işaretleri, değiştirilemez stok hareket geçmişi.
+- **Siparişler** – fiyat anlık görüntülü çok satırlı siparişler, atomik stok rezervasyonu, idempotent gönderim, işleme alma, sevk (rezervasyonu tüketir), iptal (rezervasyonu serbest bırakır), durum geçmişi.
+- **Dashboard** – aktif / düşük stoklu / stokta olmayan ürün sayıları, stok toplamları, duruma göre siparişler, günlük siparişler, son siparişler, sevk edilen sipariş tutarı (açıkça *ciro değildir*).
+- **Aktivite akışı** – RabbitMQ mesajlarından asenkron olarak üretilen okunabilir olaylar.
+- **Operasyonel** – health/readiness kontrolleri, correlation id'li yapısal loglar, OpenAPI dokümantasyonu, demo veriyle tek komutluk Docker ortamı.
 
-Planned improvements are listed in [section 20](#20-limitations-and-future-improvements).
+Planlanan iyileştirmeler [bölüm 20](#20-kısıtlar-ve-gelecek-iyileştirmeler)'de listelenmiştir.
 
-## 5. System architecture
+## 5. Sistem mimarisi
 
 ```mermaid
 flowchart LR
-    Browser["Browser<br/>React SPA"] -->|"HTTPS/HTTP :3000<br/>same origin"| Nginx["nginx<br/>static files + /api proxy"]
+    Browser["Tarayıcı<br/>React SPA"] -->|"HTTP :3000<br/>aynı origin"| Nginx["nginx<br/>statik dosyalar + /api proxy"]
     Nginx -->|/api| Api
 
-    subgraph Api["InventoryOps.Api (single deployable)"]
+    subgraph Api["InventoryOps.Api (tek dağıtılabilir birim)"]
         direction TB
-        Endpoints["Minimal API endpoints<br/>auth · CSRF · rate limits · ProblemDetails"]
-        subgraph Modules["Application modules"]
+        Endpoints["Minimal API endpoint'leri<br/>auth · CSRF · rate limit · ProblemDetails"]
+        subgraph Modules["Uygulama modülleri"]
             Catalog
             Inventory
             Orders
@@ -77,76 +77,76 @@ flowchart LR
             Identity
         end
         Outbox["Outbox dispatcher<br/>(BackgroundService)"]
-        Consumer["Activity consumer<br/>(BackgroundService)"]
+        Consumer["Aktivite tüketicisi<br/>(BackgroundService)"]
         Endpoints --> Modules
     end
 
-    Modules -->|"EF Core, one transaction<br/>business rows + outbox rows"| Sql[("SQL Server<br/>source of truth")]
+    Modules -->|"EF Core, tek transaction<br/>iş verisi + outbox satırları"| Sql[("SQL Server<br/>doğruluk kaynağı")]
     Modules -->|cache-aside| Redis[("Redis")]
-    Outbox -->|"claim pending rows"| Sql
-    Outbox -->|"persistent publish + confirms"| Rabbit[["RabbitMQ<br/>inventoryops.events"]]
-    Rabbit -->|"quorum queue<br/>manual ack"| Consumer
-    Consumer -->|"inbox + activity entry<br/>one transaction"| Sql
-    Rabbit -.->|"rejected / delivery limit"| Dlq[["DLQ"]]
+    Outbox -->|"bekleyen satırları al"| Sql
+    Outbox -->|"kalıcı yayın + confirm"| Rabbit[["RabbitMQ<br/>inventoryops.events"]]
+    Rabbit -->|"quorum queue<br/>manuel ack"| Consumer
+    Consumer -->|"inbox + aktivite kaydı<br/>tek transaction"| Sql
+    Rabbit -.->|"reddedilen / teslim limiti"| Dlq[["DLQ"]]
 ```
 
-**Why a modular monolith, not microservices.** The modules share one business transaction: submitting an order must validate catalog data, reserve stock and create the order *atomically*. In one process with one database that is a local SQL transaction; across services it would need sagas, compensations and eventual consistency for stock, which is exactly where overselling bugs appear. The team size and load of the target business do not justify independent deployment. Modules still have hard boundaries (enforced by architecture tests), so a module could be extracted later if a real reason appears. RabbitMQ and Redis are supporting infrastructure, not service boundaries: the publisher and the consumer run inside the same API process.
+**Neden mikroservis değil de modüler monolit?** Modüller tek bir iş transaction'ını paylaşır: sipariş gönderimi katalog verisini doğrulamalı, stoğu rezerve etmeli ve siparişi *atomik olarak* oluşturmalıdır. Tek süreç ve tek veritabanıyla bu yerel bir SQL transaction'ıdır; servisler arasında ise saga, telafi işlemleri ve stok için eventual consistency gerekir — fazla satış hataları tam da burada ortaya çıkar. Hedef işletmenin ekip büyüklüğü ve yükü bağımsız dağıtımı haklı çıkarmaz. Modüller yine de katı sınırlara sahiptir (mimari testlerle zorunlu kılınır), böylece gerçek bir gerekçe doğarsa bir modül sonradan ayrılabilir. RabbitMQ ve Redis servis sınırı değil, destekleyici altyapıdır: yayıncı ve tüketici aynı API süreci içinde çalışır.
 
-More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## 6. Architecture decisions
+## 6. Mimari kararlar
 
-- **Layers.** `Domain` (entities, invariants, domain events, no framework references) ← `Application` (use cases per module, validators, ports) ← `Infrastructure` (EF Core, Identity, Redis, RabbitMQ, background workers) ← `Api` (composition root, HTTP). Architecture tests fail the build if a dependency points the wrong way.
-- **Vertical organisation by module.** Each module (`Catalog`, `Inventory`, `Orders`, …) owns its commands, queries, ports and DTOs. Small use-case classes (`SubmitOrderHandler`, `OrderWorkflow`, `InventoryCommands`) instead of service "god classes" or a mediator library: explicit handlers are enough and keep call paths obvious.
-- **Module contracts.** Orders never touches inventory or catalog entities. It calls `IStockReservations` and `ICatalogModule`, which those modules implement. Architecture tests enforce that modules only reach each other through `*.Contracts`.
-- **Persistence ports, not a generic repository.** Aggregates are loaded through focused repositories (`IOrderRepository.GetAsync`, `IInventoryRepository.GetManyAsync`); screens are served by projection-only read stores (`IProductReadStore`, …) that never materialise domain objects.
-- **Domain invariants in the domain.** `InventoryItem` enforces `OnHand ≥ 0`, `Reserved ≥ 0`, `Reserved ≤ OnHand`; `Order` enforces its state machine, line rules and single currency. SQL check constraints back them up.
-- **Transaction boundary = unit of work.** `IUnitOfWork.ExecuteAsync` wraps a use case in one SQL transaction and retries it on row-version conflicts and deadlocks (bounded, jittered). Domain events become outbox rows inside the same `SaveChanges`.
-- **Synchronous vs asynchronous.** Everything that affects correctness (stock, order state) is synchronous and transactional. Only side effects that may lag (activity feed, future notifications/integrations) are asynchronous.
-- **Authentication.** First-party SPA served from the same origin, so an HttpOnly, `SameSite=Strict` cookie plus antiforgery tokens is simpler and safer than bearer tokens in browser storage ([ADR 0004](docs/adr/0004-cookie-authentication.md)).
-- **Dependency injection.** Built-in container; lifetimes chosen deliberately (DbContext and handlers scoped; Redis/RabbitMQ connections singletons; workers hosted services).
+- **Katmanlar.** `Domain` (entity'ler, invariant'lar, domain olayları, framework referansı yok) ← `Application` (modül başına use case'ler, validator'lar, port'lar) ← `Infrastructure` (EF Core, Identity, Redis, RabbitMQ, arka plan işçileri) ← `Api` (composition root, HTTP). Bir bağımlılık yanlış yöne giderse mimari testler derlemeyi kırar.
+- **Modüle göre dikey organizasyon.** Her modül (`Catalog`, `Inventory`, `Orders`, …) kendi komutlarına, sorgularına, port'larına ve DTO'larına sahiptir. "God class" servisler veya mediator kütüphanesi yerine küçük use case sınıfları (`SubmitOrderHandler`, `OrderWorkflow`, `InventoryCommands`): açık handler'lar yeterlidir ve çağrı yollarını görünür tutar.
+- **Modül sözleşmeleri.** Orders modülü stok veya katalog entity'lerine hiç dokunmaz; bu modüllerin uyguladığı `IStockReservations` ve `ICatalogModule` arayüzlerini çağırır. Mimari testler modüllerin birbirine yalnızca `*.Contracts` üzerinden erişmesini zorunlu kılar.
+- **Generic repository değil, persistence port'ları.** Aggregate'ler odaklı repository'lerle yüklenir (`IOrderRepository.GetAsync`, `IInventoryRepository.GetManyAsync`); ekranlar ise domain nesnesi oluşturmayan, yalnızca projeksiyon yapan read store'lardan beslenir (`IProductReadStore`, …).
+- **Domain invariant'ları domain'de.** `InventoryItem` `OnHand ≥ 0`, `Reserved ≥ 0`, `Reserved ≤ OnHand` kurallarını; `Order` durum makinesini, satır kurallarını ve tek para birimini zorunlu kılar. SQL check constraint'leri bunları destekler.
+- **Transaction sınırı = unit of work.** `IUnitOfWork.ExecuteAsync` bir use case'i tek SQL transaction'ına sarar ve row version çakışmalarında ve deadlock'larda (sınırlı, jitter'lı) yeniden dener. Domain olayları aynı `SaveChanges` içinde outbox satırlarına dönüşür.
+- **Senkron ve asenkron iş.** Doğruluğu etkileyen her şey (stok, sipariş durumu) senkron ve transaction'lıdır. Yalnızca gecikebilecek yan etkiler (aktivite akışı, gelecekteki bildirimler/entegrasyonlar) asenkrondur.
+- **Kimlik doğrulama.** Aynı origin'den sunulan birinci taraf SPA için HttpOnly, `SameSite=Strict` cookie ve antiforgery token'ları, tarayıcı depolamasındaki bearer token'lardan daha basit ve güvenlidir ([ADR 0004](docs/adr/0004-cookie-authentication.md)).
+- **Dependency injection.** Yerleşik container; yaşam süreleri bilinçli seçildi (DbContext ve handler'lar scoped; Redis/RabbitMQ bağlantıları singleton; işçiler hosted service).
 
-**Trade-offs accepted.** One shared `DbContext` makes cross-module transactions trivial but means module schemas are separated by convention and tests, not by physical isolation. Exceptions (not a `Result` type) signal rule violations; this keeps handlers short at the cost of exceptions as control flow for business errors.
+**Kabul edilen ödünleşimler.** Tek ortak `DbContext` modüller arası transaction'ları basitleştirir; ancak modül şemaları fiziksel izolasyonla değil, konvansiyon ve testlerle ayrılır. İş kuralı ihlalleri `Result` tipiyle değil exception'larla bildirilir; bu handler'ları kısa tutar, bedeli ise iş hataları için exception'ların akış kontrolü olarak kullanılmasıdır.
 
-ADRs: [0001 modular monolith](docs/adr/0001-modular-monolith.md) · [0002 stock concurrency](docs/adr/0002-optimistic-concurrency-for-stock.md) · [0003 transactional outbox](docs/adr/0003-transactional-outbox.md) · [0004 cookie authentication](docs/adr/0004-cookie-authentication.md) · [0005 explicit handlers, no mediator](docs/adr/0005-explicit-handlers.md)
+ADR'ler: [0001 modüler monolit](docs/adr/0001-modular-monolith.md) · [0002 stok eşzamanlılığı](docs/adr/0002-optimistic-concurrency-for-stock.md) · [0003 transactional outbox](docs/adr/0003-transactional-outbox.md) · [0004 cookie kimlik doğrulama](docs/adr/0004-cookie-authentication.md) · [0005 açık handler'lar, mediator yok](docs/adr/0005-explicit-handlers.md)
 
-## 7. Project structure
+## 7. Proje yapısı
 
 ```text
 .
 ├── backend/
-│   ├── InventoryOps.slnx              # solution (central package management, lock files)
+│   ├── InventoryOps.slnx              # solution (merkezi paket yönetimi, lock dosyaları)
 │   ├── src/
-│   │   ├── InventoryOps.Domain/       # aggregates, value objects, domain events (no dependencies)
+│   │   ├── InventoryOps.Domain/       # aggregate'ler, value object'ler, domain olayları (bağımlılık yok)
 │   │   │   ├── Catalog/  Inventory/  Orders/  Activity/  Common/
-│   │   ├── InventoryOps.Application/  # use cases per module, validators, ports, event contracts
-│   │   │   ├── Common/                # unit of work, caching, messaging contracts, paging
+│   │   ├── InventoryOps.Application/  # modül başına use case'ler, validator'lar, port'lar, olay sözleşmeleri
+│   │   │   ├── Common/                # unit of work, cache, mesaj sözleşmeleri, sayfalama
 │   │   │   └── Modules/{Catalog,Inventory,Orders,Dashboard,Activity,Identity}/
-│   │   ├── InventoryOps.Infrastructure/ # EF Core, migrations, read stores, Identity, Redis, RabbitMQ, outbox, seeding
-│   │   └── InventoryOps.Api/          # Program, endpoints, middleware, auth/CSRF/rate limits, health
+│   │   ├── InventoryOps.Infrastructure/ # EF Core, migration'lar, read store'lar, Identity, Redis, RabbitMQ, outbox, seed
+│   │   └── InventoryOps.Api/          # Program, endpoint'ler, middleware, auth/CSRF/rate limit, health
 │   ├── tests/
-│   │   ├── InventoryOps.UnitTests/        # domain + application rules
-│   │   ├── InventoryOps.IntegrationTests/ # API against Testcontainers SQL Server, Redis, RabbitMQ
-│   │   └── InventoryOps.ArchitectureTests/# dependency and module boundary rules
-│   └── Dockerfile                     # multi-stage, chiseled non-root runtime image
+│   │   ├── InventoryOps.UnitTests/        # domain + application kuralları
+│   │   ├── InventoryOps.IntegrationTests/ # Testcontainers SQL Server, Redis, RabbitMQ'ya karşı API
+│   │   └── InventoryOps.ArchitectureTests/# bağımlılık ve modül sınırı kuralları
+│   └── Dockerfile                     # çok aşamalı, chiseled ve root olmayan runtime imajı
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                       # router, shell, route guards
+│   │   ├── app/                       # router, kabuk, route guard'ları
 │   │   ├── features/{auth,dashboard,products,inventory,orders,activity,users}/
-│   │   ├── components/{ui,shared}/    # design-system primitives and shared building blocks
+│   │   ├── components/{ui,shared}/    # tasarım sistemi primitive'leri ve ortak yapı taşları
 │   │   ├── lib/  hooks/  types/  styles/
-│   ├── e2e/                           # Playwright workflows + screenshot capture
-│   ├── nginx/                         # same-origin proxy, security headers
+│   ├── e2e/                           # Playwright akışları + ekran görüntüsü alma
+│   ├── nginx/                         # aynı origin proxy, güvenlik başlıkları
 │   └── Dockerfile
-├── compose.yaml / compose.dev.yaml    # full stack / optional loopback-only dev ports
-├── scripts/bootstrap.{sh,ps1}         # generates .env with random local secrets
-├── docs/                              # architecture, database, security, testing, deployment, ADRs, screenshots
+├── compose.yaml / compose.dev.yaml    # tam ortam / isteğe bağlı loopback geliştirme portları
+├── scripts/bootstrap.{sh,ps1}         # rastgele yerel secret'larla .env üretir
+├── docs/                              # mimari, veritabanı, güvenlik, test, dağıtım, ADR'ler, ekran görüntüleri
 └── .github/workflows/ci.yml
 ```
 
-## 8. Database design
+## 8. Veritabanı tasarımı
 
-One SQL Server database with **one schema per module**: `catalog`, `inventory`, `orders`, `activity`, `messaging`, `identity`.
+Tek SQL Server veritabanı, **modül başına bir şema**: `catalog`, `inventory`, `orders`, `activity`, `messaging`, `identity`.
 
 ```mermaid
 erDiagram
@@ -213,45 +213,45 @@ erDiagram
     }
 ```
 
-Key decisions:
+Temel kararlar:
 
-- **Constraints:** unique SKU, unique category name, unique `(CreatedBy, IdempotencyKey)`, unique `(OrderId, ProductId)` per order, unique `ActivityEntries.SourceMessageId`; check constraints for non-negative prices/totals, positive quantities and the three stock invariants; restrictive foreign keys (products are never hard-deleted; lines keep their own snapshots).
-- **Money:** `decimal(12,2)` prices, `decimal(14,2)` totals, ISO currency code; never floating point.
-- **Indexes:** SKU and name; category/status; orders by `(Status, CreatedAt)` and `CreatedAt`; stock movements by `(ProductId, OccurredAt DESC)`; a filtered index for pending outbox rows; activity by `OccurredAt` and `(Module, OccurredAt)`.
-- **Keys:** GUID v7 ids generated in the domain. Because SQL Server does not order `uniqueidentifier` by its time component, `Orders` uses a **non-clustered PK** and is **clustered on the sequence-generated order number**; append-only logs use `bigint IDENTITY` keys.
-- **Concurrency:** `rowversion` on products, inventory items and orders (shadow properties, kept out of the domain model).
-- **Isolation:** `READ_COMMITTED_SNAPSHOT` is enabled so readers do not block on writers; optimistic checks still compare against the latest committed row version.
-- **Migrations:** EF Core migrations, applied by a one-shot `migrate` command (separate `migrator` container), never automatically by every API instance.
+- **Kısıtlar:** benzersiz SKU, benzersiz kategori adı, benzersiz `(CreatedBy, IdempotencyKey)`, sipariş başına benzersiz `(OrderId, ProductId)`, benzersiz `ActivityEntries.SourceMessageId`; negatif olmayan fiyat/toplam, pozitif miktar ve üç stok invariant'ı için check constraint'ler; kısıtlayıcı foreign key'ler (ürünler asla fiziksel olarak silinmez; satırlar kendi anlık görüntülerini tutar).
+- **Para:** fiyatlar `decimal(12,2)`, toplamlar `decimal(14,2)`, ISO para birimi kodu; asla kayan nokta değil.
+- **İndeksler:** SKU ve ad; kategori/durum; siparişler için `(Status, CreatedAt)` ve `CreatedAt`; stok hareketleri için `(ProductId, OccurredAt DESC)`; bekleyen outbox satırları için filtreli indeks; aktivite için `OccurredAt` ve `(Module, OccurredAt)`.
+- **Anahtarlar:** domain'de üretilen GUID v7 id'ler. SQL Server `uniqueidentifier` değerlerini zaman bileşenine göre sıralamadığı için `Orders` tablosu **clustered olmayan PK** kullanır ve **sequence ile üretilen sipariş numarasına göre cluster'lanır**; yalnızca eklemeli log tabloları `bigint IDENTITY` anahtar kullanır.
+- **Eşzamanlılık:** ürünlerde, stok kalemlerinde ve siparişlerde `rowversion` (domain modelinin dışında tutulan shadow property'ler).
+- **İzolasyon:** `READ_COMMITTED_SNAPSHOT` etkindir, böylece okuyucular yazanları beklemez; iyimser kontroller yine de son commit edilmiş row version ile karşılaştırma yapar.
+- **Migration'lar:** EF Core migration'ları, ayrı bir `migrator` container'ında çalışan tek seferlik `migrate` komutuyla uygulanır; hiçbir API instance'ı bunları otomatik uygulamaz.
 
-Full details: [docs/DATABASE.md](docs/DATABASE.md).
+Tüm ayrıntılar: [docs/DATABASE.md](docs/DATABASE.md).
 
-## 9. Order lifecycle
+## 9. Sipariş yaşam döngüsü
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Submitted: submit (reserve stock)
-    Submitted --> Processing: start processing
-    Submitted --> Cancelled: cancel (release reservation)
-    Processing --> Fulfilled: fulfil (consume reservation, decrease on hand)
-    Processing --> Cancelled: cancel (release reservation)
+    [*] --> Submitted: gönder (stok rezerve et)
+    Submitted --> Processing: işleme al
+    Submitted --> Cancelled: iptal (rezervasyonu serbest bırak)
+    Processing --> Fulfilled: sevk et (rezervasyonu tüket, eldekini azalt)
+    Processing --> Cancelled: iptal (rezervasyonu serbest bırak)
     Fulfilled --> [*]
     Cancelled --> [*]
 ```
 
-| Step | Stock effect (same transaction) | Recorded |
+| Adım | Stok etkisi (aynı transaction) | Kaydedilenler |
 |---|---|---|
-| Submit | `Reserved += qty` for every line, rejected if `qty > Available` | order, lines with price snapshots, history, movements, `orders.order-submitted.v1` |
-| Start processing | none | history, `orders.order-processing-started.v1` |
-| Fulfil | `Reserved -= qty`, `OnHand -= qty` | history, `Fulfillment` movements, `orders.order-fulfilled.v1` |
-| Cancel | `Reserved -= qty` | reason, history, release movements, `orders.order-cancelled.v1` |
+| Gönder | Her satır için `Reserved += qty`; `qty > Available` ise reddedilir | sipariş, fiyat anlık görüntülü satırlar, geçmiş, hareketler, `orders.order-submitted.v1` |
+| İşleme al | yok | geçmiş, `orders.order-processing-started.v1` |
+| Sevk et | `Reserved -= qty`, `OnHand -= qty` | geçmiş, `Fulfillment` hareketleri, `orders.order-fulfilled.v1` |
+| İptal et | `Reserved -= qty` | gerekçe, geçmiş, serbest bırakma hareketleri, `orders.order-cancelled.v1` |
 
-Any other transition returns **409** (`orders.invalid_transition`). Two users fulfilling the same order concurrently: one succeeds, the other's retry sees `Fulfilled` and receives 409 — stock is consumed once (covered by an integration test).
+Diğer tüm geçişler **409** (`orders.invalid_transition`) döner. İki kullanıcı aynı siparişi eşzamanlı sevk ederse: biri başarılı olur, diğerinin yeniden denemesi `Fulfilled` durumunu görür ve 409 alır — stok yalnızca bir kez tüketilir (bir entegrasyon testiyle doğrulanır).
 
-**Order submission** validates products (exist, active, single currency), allocates an order number from a SQL sequence, creates the order with price snapshots and reserves stock for all lines — in one transaction. Duplicate submissions are prevented by a required `Idempotency-Key` header, scoped per user and stored on the order under a unique index (see [ADR 0002](docs/adr/0002-optimistic-concurrency-for-stock.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#idempotent-order-submission)).
+**Sipariş gönderimi** ürünleri doğrular (var, aktif, tek para birimi), bir SQL sequence'inden sipariş numarası alır, fiyat anlık görüntüleriyle siparişi oluşturur ve tüm satırlar için stok rezerve eder — hepsi tek transaction'da. Tekrarlanan gönderimler zorunlu `Idempotency-Key` başlığıyla engellenir; anahtar kullanıcı bazındadır ve benzersiz indeks altında siparişin üzerinde saklanır (bkz. [ADR 0002](docs/adr/0002-optimistic-concurrency-for-stock.md) ve [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#idempotent-order-submission)).
 
-## 10. RabbitMQ and the transactional outbox
+## 10. RabbitMQ ve transactional outbox
 
-Asynchronous messaging exists for work that may lag behind the business transaction without affecting correctness — today the activity feed; tomorrow notifications or integrations. Stock reservation **never** depends on message delivery.
+Asenkron mesajlaşma, doğruluğu etkilemeden iş transaction'ının gerisinde kalabilecek işler için vardır — bugün aktivite akışı, yarın bildirimler veya entegrasyonlar. Stok rezervasyonu **asla** mesaj teslimatına bağlı değildir.
 
 ```mermaid
 sequenceDiagram
@@ -261,95 +261,96 @@ sequenceDiagram
     participant DB as SQL Server
     participant D as Outbox dispatcher
     participant MQ as RabbitMQ
-    participant C as Activity consumer
+    participant C as Aktivite tüketicisi
 
     UI->>API: POST /api/v1/orders (Idempotency-Key, X-XSRF-TOKEN)
     API->>DB: BEGIN TRAN
-    API->>DB: reserve stock (row-version checked), insert order + lines
-    API->>DB: insert outbox row "orders.order-submitted.v1"
+    API->>DB: stok rezerve et (row version kontrollü), sipariş + satırları ekle
+    API->>DB: outbox satırı ekle "orders.order-submitted.v1"
     API->>DB: COMMIT
     API-->>UI: 201 Created
-    loop every second
-        D->>DB: claim batch (UPDLOCK, READPAST, 60 s lease)
-        D->>MQ: publish persistent, mandatory, wait for confirm
+    loop her saniye
+        D->>DB: batch al (UPDLOCK, READPAST, 60 sn kiralama)
+        D->>MQ: kalıcı, mandatory yayın, confirm bekle
         MQ-->>D: ack
-        D->>DB: mark ProcessedAt
+        D->>DB: ProcessedAt işaretle
     end
-    MQ->>C: deliver (manual ack, prefetch 16)
-    C->>DB: BEGIN TRAN · insert inbox(MessageId) + activity entry · COMMIT
+    MQ->>C: teslim (manuel ack, prefetch 16)
+    C->>DB: BEGIN TRAN · inbox(MessageId) + aktivite kaydı ekle · COMMIT
     C->>MQ: ack
-    Note over C,DB: duplicate delivery → inbox row exists → ack, no second entry
+    Note over C,DB: tekrar teslim → inbox satırı mevcut → ack, ikinci kayıt yok
 ```
 
-| Concern | Implementation |
+| Konu | Uygulama |
 |---|---|
-| Event contracts | Versioned type names (`orders.order-submitted.v1`, `inventory.low-stock-detected.v1`, …) mapped from domain events in `IntegrationEventMapper`; payload is JSON, metadata in AMQP properties/headers (message id, type, correlation id, actor, occurred-at). Breaking changes add a `.v2` type. |
-| Outbox storage | `messaging.OutboxMessages`, written in the same `SaveChanges` as business data. |
-| Publishing | Topic exchange `inventoryops.events` (durable), routing key = event type, persistent messages, `mandatory=true`, publisher confirms with tracking (10 s timeout). |
-| Retries | Message-specific failures (nack/unroutable) back off exponentially (2ⁿ s, max 5 min) and are **parked** after 10 attempts (`DeadLetteredAt`, logged as error). Broker outages do **not** consume attempts; rows simply stay pending. |
-| Consumer | Quorum queue `inventoryops.activity` bound with `#`, manual acks, `x-delivery-limit=5`; malformed messages are rejected without requeue; transient failures are requeued. |
-| Dead letters | `inventoryops.dlx` (fanout) → `inventoryops.activity.dlq`. |
-| Idempotency | `messaging.InboxMessages (MessageId, Consumer)` inserted in the same transaction as the activity entry, plus a unique index on `ActivityEntries.SourceMessageId`. |
-| Delivery semantics | **At-least-once** publish and delivery, **effectively-once** effects in the consumer. No exactly-once promise, no cross-message ordering guarantee. |
+| Olay sözleşmeleri | Domain olaylarından `IntegrationEventMapper` ile eşlenen versiyonlu tip adları (`orders.order-submitted.v1`, `inventory.low-stock-detected.v1`, …); payload JSON, metadata AMQP property/header'larında (message id, tip, correlation id, aktör, oluşma zamanı). Kırıcı değişiklikler yeni bir `.v2` tipi ekler. |
+| Outbox deposu | İş verisiyle aynı `SaveChanges` içinde yazılan `messaging.OutboxMessages`. |
+| Yayınlama | Topic exchange `inventoryops.events` (durable), routing key = olay tipi, kalıcı mesajlar, `mandatory=true`, tracking'li publisher confirm (10 sn timeout). |
+| Yeniden denemeler | Mesaja özgü hatalar (nack/yönlendirilemez) üstel olarak bekler (2ⁿ sn, en fazla 5 dk) ve 10 denemeden sonra **park edilir** (`DeadLetteredAt`, hata olarak loglanır). Broker kesintileri deneme hakkı **tüketmez**; satırlar sadece bekler. |
+| Tüketici | `#` ile bağlanmış quorum queue `inventoryops.activity`, manuel ack, `x-delivery-limit=5`; bozuk mesajlar requeue olmadan reddedilir; geçici hatalar tekrar kuyruğa alınır. |
+| Dead letter | `inventoryops.dlx` (fanout) → `inventoryops.activity.dlq`. |
+| Idempotency | Aktivite kaydıyla aynı transaction'da eklenen `messaging.InboxMessages (MessageId, Consumer)` ve `ActivityEntries.SourceMessageId` üzerinde benzersiz indeks. |
+| Teslim semantiği | Yayın ve teslimde **en az bir kez (at-least-once)**, tüketicide **etkin olarak bir kez** etki. Exactly-once vaadi yok, mesajlar arası sıralama garantisi yok. |
 
-Tested against a real broker: end-to-end flow, duplicate deliveries, dead-lettering of malformed messages, and a **paused broker** (writes keep succeeding, outbox rows stay pending with zero attempts consumed, events are delivered after the broker returns).
+Gerçek bir broker'a karşı test edildi: uçtan uca akış, tekrarlanan teslimatlar, bozuk mesajların dead-letter'a düşmesi ve **duraklatılmış broker** senaryosu (yazmalar başarılı olmaya devam eder, outbox satırları hiç deneme tüketmeden bekler, broker geri geldiğinde olaylar teslim edilir).
 
-## 11. Redis strategy
+## 11. Redis stratejisi
 
-Redis accelerates reads; SQL Server remains the only source of truth.
+Redis okumaları hızlandırır; tek doğruluk kaynağı SQL Server'dır.
 
-| Cached query | Key | TTL | Invalidated by |
+| Cache'lenen sorgu | Anahtar | TTL | Invalidation tetikleyicisi |
 |---|---|---|---|
-| Product details | `catalog:product:{id}:v1` | 5 min | product update, activate/deactivate |
-| Category list | `catalog:categories:v1` | 30 min | product create/update, category create |
-| Dashboard summary | `dashboard:summary:v1` | 30 s | every stock adjustment, threshold change, order submit/transition, product create/(de)activate |
+| Ürün detayı | `catalog:product:{id}:v1` | 5 dk | ürün güncelleme, aktifleştirme/pasifleştirme |
+| Kategori listesi | `catalog:categories:v1` | 30 dk | ürün oluşturma/güncelleme, kategori oluşturma |
+| Dashboard özeti | `dashboard:summary:v1` | 30 sn | her stok düzeltmesi, eşik değişikliği, sipariş gönderimi/geçişi, ürün oluşturma/(pasif)aktifleştirme |
 
-- **Not cached:** product lists (search/filter/sort combinations have low hit rates and include live availability), inventory, orders, movement history. **Stock availability is always read from SQL Server**, and order submission validates against the database inside the transaction.
-- **Cache-aside**: read → miss → load from SQL → store with TTL. Keys carry a schema version suffix so DTO changes do not read old shapes after deployment.
-- **Invalidation** runs after the transaction commits. A cache-aside race (a reader repopulating with a value read just before a write) is possible; TTLs bound staleness to 30 s for the dashboard and 5 min for product details.
-- **Failure behaviour:** the multiplexer is created with `abortConnect=false`, 1 s timeouts, and is skipped while disconnected. Read failures are misses, write/invalidation failures are logged warnings (keys only, never values). Readiness reports Redis as *Degraded*, not *Unhealthy* — verified by an integration test that runs the API with Redis unreachable.
+- **Cache'lenmeyenler:** ürün listeleri (arama/filtre/sıralama kombinasyonlarının isabet oranı düşüktür ve canlı stok içerir), stok, siparişler, hareket geçmişi. **Stok durumu her zaman SQL Server'dan okunur** ve sipariş gönderimi transaction içinde veritabanına karşı doğrulanır.
+- **Cache-aside:** oku → yoksa → SQL'den yükle → TTL ile sakla. Anahtarlar şema versiyonu son eki taşır; böylece DTO değişiklikleri dağıtım sonrası eski formatları okumaz.
+- **Invalidation** transaction commit edildikten sonra çalışır. Cache-aside yarışı (bir okuyucunun bir yazmadan hemen önce okuduğu değerle cache'i yeniden doldurması) mümkündür; TTL'ler eskimeyi dashboard için 30 sn, ürün detayları için 5 dk ile sınırlar.
+- **Hata davranışı:** multiplexer `abortConnect=false` ve 1 sn timeout'larla oluşturulur, bağlantı yokken atlanır. Okuma hataları "cache miss" sayılır, yazma/invalidation hataları uyarı olarak loglanır (yalnızca anahtarlar, asla değerler). Readiness, Redis'i *Unhealthy* değil *Degraded* olarak raporlar — bu, Redis'e erişilemezken API'yi çalıştıran bir entegrasyon testiyle doğrulanır.
 
-## 12. Security architecture
+## 12. Güvenlik mimarisi
 
-| Area | Implementation |
+| Alan | Uygulama |
 |---|---|
-| Authentication | ASP.NET Core Identity (PBKDF2 password hashing), HttpOnly `SameSite=Strict` session cookie, 8 h sliding expiry, `Secure` flag configurable (on by default; off only for the local HTTP stack). Unknown accounts are timing-equalised; all failures return one generic message. |
-| Brute force | Account lockout after 5 failures (15 min) + login rate limit per client IP (10/min) + global per-user/IP limiter (600/min) → `429` with `Retry-After`. |
-| Session revocation | Role changes and deactivation rotate the security stamp; sessions are re-validated every minute. Deactivated users cannot sign in. |
-| Authorization | Role policies on every endpoint (`CanRead`, `CanOperate`, `CanViewActivity`, `CanManageUsers`) and a **fallback policy requiring authentication** for anything unannotated. Admins cannot demote/deactivate themselves; the last active admin cannot be removed. The UI hides controls but the API is authoritative. |
-| CSRF | Antiforgery tokens bound to the user, double-submit via `XSRF-TOKEN` cookie → `X-XSRF-TOKEN` header, validated for **every** unsafe request (including login). |
-| Input | FluentValidation on all commands; unknown JSON properties rejected (mass-assignment protection); sort fields allow-listed; page size ≤ 100; 1 MB request bodies; parameterised SQL only (EF Core, interpolated `FromSql`, parameters + `QUOTENAME` for login provisioning). |
-| Errors | RFC 9457 problem details with stable `code`s; no stack traces or exception messages for unexpected errors (only a correlation id). |
-| Headers | API: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, restrictive CSP, `Cache-Control: no-store`. SPA (nginx): CSP without inline/third-party scripts, same headers. |
-| Database | API connects with a **least-privilege login** (`db_datareader`, `db_datawriter`, sequence `UPDATE`) created by the migrator; only the migrator uses `sa`. |
-| Secrets | Nothing secret in Git. `scripts/bootstrap` generates random passwords into a git-ignored `.env`; compose refuses to start without them. No default admin password exists. |
-| Containers | Chiseled .NET runtime (no shell, non-root), unprivileged nginx; SQL Server/Redis/RabbitMQ only on an `internal` Docker network; only the frontend port is published (loopback by default). Redis requires a password. |
-| Logging | No passwords, cookies, tokens, connection strings or request bodies are logged; user ids rather than emails in request logs. |
+| Kimlik doğrulama | ASP.NET Core Identity (PBKDF2 parola hash'leme), HttpOnly `SameSite=Strict` oturum cookie'si, 8 saat kayan süre, yapılandırılabilir `Secure` bayrağı (varsayılan açık; yalnızca yerel HTTP ortamında kapalı). Bilinmeyen hesaplar için süre eşitlenir; tüm hatalar tek genel mesaj döner. |
+| Brute force | 5 hatalı denemeden sonra hesap kilitleme (15 dk) + istemci IP'si başına giriş rate limit'i (10/dk) + kullanıcı/IP başına genel limit (600/dk) → `Retry-After` ile `429`. |
+| Oturum iptali | Rol değişiklikleri ve pasifleştirme security stamp'i yeniler; oturumlar dakikada bir yeniden doğrulanır. Pasif kullanıcılar giriş yapamaz. |
+| Yetkilendirme | Her endpoint'te rol politikaları (`CanRead`, `CanOperate`, `CanViewActivity`, `CanManageUsers`) ve işaretlenmemiş her şey için **kimlik doğrulama gerektiren fallback politikası**. Admin'ler kendi rolünü düşüremez veya kendini pasifleştiremez; son aktif admin kaldırılamaz. Arayüz kontrolleri gizler, ama asıl otorite API'dir. |
+| CSRF | Kullanıcıya bağlı antiforgery token'ları, `XSRF-TOKEN` cookie'si → `X-XSRF-TOKEN` başlığı ile double-submit; giriş dahil **her** güvenli olmayan istekte doğrulanır. |
+| Girdi | Tüm komutlarda FluentValidation; bilinmeyen JSON alanları reddedilir (mass assignment koruması); sıralama alanları izin listesiyle sınırlı; sayfa boyutu ≤ 100; 1 MB istek gövdesi; yalnızca parametreli SQL (EF Core, interpolated `FromSql`, login oluşturmada parametre + `QUOTENAME`). |
+| Hatalar | Kararlı `code` değerli RFC 9457 problem details; beklenmedik hatalarda stack trace veya exception mesajı yok (yalnızca correlation id). |
+| Başlıklar | API: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, kısıtlayıcı CSP, `Cache-Control: no-store`. SPA (nginx): inline/üçüncü taraf script içermeyen CSP ve aynı başlıklar. |
+| Veritabanı | API, migrator'ın oluşturduğu **en az yetkili login** ile bağlanır (`db_datareader`, `db_datawriter`, sequence üzerinde `UPDATE`); `sa` yalnızca migrator tarafından kullanılır. |
+| Secret'lar | Git'te gizli bilgi yok. `scripts/bootstrap`, git tarafından yok sayılan bir `.env` dosyasına rastgele parolalar üretir; compose bunlar olmadan başlamayı reddeder. Varsayılan admin parolası yoktur. |
+| Container'lar | Chiseled .NET runtime (shell yok, root olmayan), yetkisiz nginx; SQL Server/Redis/RabbitMQ yalnızca `internal` Docker ağında; yalnızca frontend portu yayınlanır (varsayılan olarak loopback). Redis parola ister. |
+| Loglama | Parolalar, cookie'ler, token'lar, connection string'ler veya istek gövdeleri loglanmaz; istek loglarında e-posta yerine kullanıcı id'si kullanılır. |
+| Oturum anahtarları | Cookie ve antiforgery token'larını şifreleyen data-protection anahtarları SQL Server'da (`identity.DataProtectionKeys`) tutulur; oturumlar container yeniden oluşturulsa da korunur ve birden fazla instance arasında çalışır. |
 
-Known limitations and the threat model: [docs/SECURITY.md](docs/SECURITY.md). The application has not had an external security review; passing tests do not make it "secure".
+Bilinen kısıtlar ve tehdit modeli: [docs/SECURITY.md](docs/SECURITY.md). Uygulama harici bir güvenlik incelemesinden geçmemiştir; testlerin geçmesi uygulamayı "güvenli" yapmaz.
 
-## 13. API documentation
+## 13. API dokümantasyonu
 
-- Base URL: `http://localhost:3000/api/v1` (proxied same-origin by nginx)
-- Interactive reference (Scalar): `http://localhost:3000/api/docs` · OpenAPI document: `/api/openapi/v1.json` (enabled locally via `OPENAPI_ENABLED`)
+- Base URL: `http://localhost:3000/api/v1` (nginx tarafından aynı origin'e proxy'lenir)
+- Etkileşimli referans (Scalar): `http://localhost:3000/api/docs` · OpenAPI dokümanı: `/api/openapi/v1.json` (yerelde `OPENAPI_ENABLED` ile açık)
 - Health: `GET /api/health/live`, `GET /api/health/ready`
 
-| Group | Endpoints | Policy |
+| Grup | Endpoint'ler | Politika |
 |---|---|---|
-| Auth | `GET /auth/csrf`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | anonymous / authenticated |
-| Catalog | `GET/POST /products`, `GET/PUT /products/{id}`, `POST /products/{id}/deactivate, /activate`, `GET/POST /categories` | read: any role · write: Admin, Manager |
-| Inventory | `GET /inventory`, `GET /inventory/{productId}`, `GET /inventory/{productId}/movements`, `POST /inventory/{productId}/adjustments`, `PUT /inventory/{productId}/reorder-threshold` | read: any role · write: Admin, Manager |
-| Orders | `GET/POST /orders`, `GET /orders/{id}`, `POST /orders/{id}/process, /fulfill, /cancel` | read: any role · write: Admin, Manager |
-| Dashboard | `GET /dashboard/summary` | any role |
-| Activity | `GET /activity?module=&severity=` | Admin, Manager |
-| Users | `GET/POST /users`, `PUT /users/{id}/role`, `PUT /users/{id}/status` | Admin |
+| Auth | `GET /auth/csrf`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | anonim / oturum açmış |
+| Katalog | `GET/POST /products`, `GET/PUT /products/{id}`, `POST /products/{id}/deactivate, /activate`, `GET/POST /categories` | okuma: tüm roller · yazma: Admin, Manager |
+| Stok | `GET /inventory`, `GET /inventory/{productId}`, `GET /inventory/{productId}/movements`, `POST /inventory/{productId}/adjustments`, `PUT /inventory/{productId}/reorder-threshold` | okuma: tüm roller · yazma: Admin, Manager |
+| Siparişler | `GET/POST /orders`, `GET /orders/{id}`, `POST /orders/{id}/process, /fulfill, /cancel` | okuma: tüm roller · yazma: Admin, Manager |
+| Dashboard | `GET /dashboard/summary` | tüm roller |
+| Aktivite | `GET /activity?module=&severity=` | Admin, Manager |
+| Kullanıcılar | `GET/POST /users`, `PUT /users/{id}/role`, `PUT /users/{id}/status` | Admin |
 
-Example — submit an order (cookie and CSRF header come from a prior login):
+Örnek — sipariş gönderimi (cookie ve CSRF başlığı önceki girişten gelir):
 
 ```http
 POST /api/v1/orders
 Content-Type: application/json
-X-XSRF-TOKEN: <value of the XSRF-TOKEN cookie>
+X-XSRF-TOKEN: <XSRF-TOKEN cookie değeri>
 Idempotency-Key: 6f1c2a7e-3a7b-4f0e-9a51-0c7d2d6c9b11
 
 { "customerName": "Northwind Traders", "notes": null,
@@ -364,9 +365,9 @@ Location: /api/v1/orders/0198…
   "lines": [ … ], "history": [ … ], "allowedTransitions": ["Processing", "Cancelled"] }
 ```
 
-Replaying the same key with the same body returns `200` and the original order; with a different body, `409 orders.idempotency_key_reused`.
+Aynı anahtarı aynı gövdeyle tekrar göndermek `200` ve orijinal siparişi döner; farklı bir gövdeyle `409 orders.idempotency_key_reused` döner.
 
-Example — not enough stock:
+Örnek — yetersiz stok:
 
 ```json
 {
@@ -380,11 +381,11 @@ Example — not enough stock:
 }
 ```
 
-Standard errors: `400` validation (`errors` per field) / malformed JSON / unknown properties / bad CSRF token, `401` unauthenticated, `403` forbidden, `404` not found, `409` conflicts (stock, duplicates, invalid transitions, exhausted concurrency retries, idempotency mismatch), `422` business rule (e.g. inactive product), `429` rate limited, `500` unexpected (generic message + correlation id).
+Standart hatalar: `400` doğrulama (alan bazında `errors`) / bozuk JSON / bilinmeyen alanlar / geçersiz CSRF token'ı, `401` kimlik doğrulanmamış, `403` yetkisiz, `404` bulunamadı, `409` çakışmalar (stok, tekrarlar, geçersiz geçişler, tükenen eşzamanlılık denemeleri, idempotency uyuşmazlığı), `422` iş kuralı (ör. pasif ürün), `429` rate limit, `500` beklenmedik hata (genel mesaj + correlation id).
 
-## 14. Docker setup
+## 14. Docker kurulumu
 
-**Prerequisites:** Docker Desktop (Windows/macOS) or Docker Engine + Compose v2 (Linux), ~4 GB RAM for Docker, ports 3000 free. The SQL Server image is `linux/amd64` only; on Apple Silicon it runs under emulation (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
+**Gereksinimler:** Docker Desktop (Windows/macOS) veya Docker Engine + Compose v2 (Linux), Docker için ~4 GB RAM, 3000 portunun boş olması. SQL Server imajı yalnızca `linux/amd64` içindir; Apple Silicon'da emülasyonla çalışır (bkz. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
 
 ```bash
 git clone https://github.com/Erenen1/inventory-ops.git
@@ -394,27 +395,27 @@ git clone https://github.com/Erenen1/inventory-ops.git
 cd inventory-ops
 ```
 
-Generate local secrets (creates a git-ignored `.env`; never overwrites an existing one):
+Yerel secret'ları üretin (git tarafından yok sayılan bir `.env` oluşturur; mevcut dosyanın üzerine asla yazmaz):
 
 ```bash
 sh scripts/bootstrap.sh
 ```
 
-On Windows PowerShell:
+Windows PowerShell'de:
 
 ```bash
 powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
 ```
 
-Build and start everything (first run downloads images and takes a few minutes):
+Her şeyi derleyip başlatın (ilk çalıştırma imajları indirir ve birkaç dakika sürer):
 
 ```bash
 docker compose up -d --build
 ```
 
-Compose starts SQL Server, Redis and RabbitMQ, waits for their health checks, runs the one-shot **migrator** (migrations, read-committed snapshot, least-privilege SQL login, admin user, demo data and demo users when `SEED_DEMO_DATA=true`), then starts the API and the nginx frontend once the API reports ready.
+Compose önce SQL Server, Redis ve RabbitMQ'yu başlatır ve health check'lerini bekler; ardından tek seferlik **migrator**'ı çalıştırır (migration'lar, read committed snapshot, en az yetkili SQL login'i, admin kullanıcı, `SEED_DEMO_DATA=true` ise demo veri ve demo kullanıcılar); API hazır olduğunu bildirdiğinde de API'yi ve nginx frontend'i başlatır.
 
-Verify:
+Doğrulama:
 
 ```bash
 docker compose ps
@@ -424,43 +425,43 @@ docker compose ps
 curl http://localhost:3000/api/health/ready
 ```
 
-Open **http://localhost:3000** and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env` (demo Manager and Viewer accounts are listed there too).
+**http://localhost:3000** adresini açın ve `.env` içindeki `ADMIN_EMAIL` / `ADMIN_PASSWORD` ile giriş yapın (demo Manager ve Viewer hesapları da orada listelenir).
 
-| URL | Purpose |
+| URL | Amaç |
 |---|---|
-| http://localhost:3000 | Application |
-| http://localhost:3000/api/docs | API reference (local) |
+| http://localhost:3000 | Uygulama |
+| http://localhost:3000/api/docs | API referansı (yerel) |
 | http://localhost:3000/api/health/ready | Readiness (SQL Server, Redis, RabbitMQ) |
 
-Stop (data is kept in named volumes):
+Durdurma (veriler named volume'larda korunur):
 
 ```bash
 docker compose down
 ```
 
-Reset **all local data** (deletes the volumes, then the next `up` re-seeds the demo dataset):
+**Tüm yerel verileri** sıfırlama (volume'ları siler; sonraki `up` demo veriyi yeniden yükler):
 
 ```bash
 docker compose down -v
 ```
 
-Optional: expose infrastructure on `127.0.0.1` only (SQL `14333`, Redis `16379`, AMQP `15672`, RabbitMQ UI `15673`) to run the API from an IDE:
+İsteğe bağlı: API'yi IDE'den çalıştırmak için altyapıyı yalnızca `127.0.0.1` üzerinde açın (SQL `14333`, Redis `16379`, AMQP `15672`, RabbitMQ UI `15673`):
 
 ```bash
 docker compose -f compose.yaml -f compose.dev.yaml up -d sqlserver redis rabbitmq
 ```
 
-## 15. Testing
+## 15. Testler
 
-| Layer | Project | What it verifies | Infrastructure |
+| Katman | Proje | Neyi doğrular | Altyapı |
 |---|---|---|---|
-| Unit (60) | `backend/tests/InventoryOps.UnitTests` | Stock invariants and movements, order state machine, totals with decimals, SKU/money rules, validators, request hashing, event contracts, activity projection | none |
-| Architecture (9) | `backend/tests/InventoryOps.ArchitectureTests` | Layer direction, module boundaries via contracts only, thin endpoints, no public setters on domain types | none |
-| Integration (55) | `backend/tests/InventoryOps.IntegrationTests` | The real API over HTTP against **SQL Server, Redis and RabbitMQ in Testcontainers**: auth, CSRF, role matrix, privilege escalation, lockout, rate limiting, validation, mass assignment, pagination limits, duplicate SKUs under concurrency, check constraints, idempotency (incl. concurrent replays), **30 concurrent orders for 10 units never oversell**, single fulfilment under concurrency, cache invalidation, Redis outage, outbox → broker → consumer, duplicate deliveries, DLQ, paused broker recovery | Docker |
-| Frontend (22) | `frontend/src/**/*.test.tsx` (Vitest + Testing Library) | Form schemas, client validation, server error mapping, CSRF + idempotency headers, retry reuses the idempotency key, role-based navigation, loading/empty/error states | none |
-| E2E (4 + screenshots) | `frontend/e2e` (Playwright) | Login, dashboard, product creation, stock receipt, order reservation, processing and fulfilment, inventory screen update, viewer restrictions in UI **and** API, logout, invalid credentials. Assertions read state back through the API; console errors fail the test. | running Docker stack |
+| Unit (60) | `backend/tests/InventoryOps.UnitTests` | Stok invariant'ları ve hareketleri, sipariş durum makinesi, decimal toplamlar, SKU/para kuralları, validator'lar, istek hash'leme, olay sözleşmeleri, aktivite projeksiyonu | yok |
+| Mimari (9) | `backend/tests/InventoryOps.ArchitectureTests` | Katman yönü, modül sınırları yalnızca sözleşmeler üzerinden, ince endpoint'ler, domain tiplerinde public setter yok | yok |
+| Entegrasyon (55) | `backend/tests/InventoryOps.IntegrationTests` | **Testcontainers'daki SQL Server, Redis ve RabbitMQ'ya** karşı HTTP üzerinden gerçek API: kimlik doğrulama, CSRF, rol matrisi, yetki yükseltme, hesap kilitleme, rate limit, doğrulama, mass assignment, sayfalama limitleri, eşzamanlı tekrarlanan SKU'lar, check constraint'ler, idempotency (eşzamanlı tekrarlar dahil), **10 birimlik stoğa 30 eşzamanlı sipariş asla fazla satış yapmaz**, eşzamanlılık altında tek sevk, cache invalidation, Redis kesintisi, outbox → broker → tüketici, tekrarlanan teslimatlar, DLQ, duraklatılmış broker sonrası toparlanma | Docker |
+| Frontend (22) | `frontend/src/**/*.test.tsx` (Vitest + Testing Library) | Form şemaları, istemci doğrulaması, sunucu hatalarının forma eşlenmesi, CSRF + idempotency başlıkları, yeniden denemede aynı idempotency anahtarı, role göre navigasyon, yükleniyor/boş/hata durumları | yok |
+| E2E (4 + ekran görüntüleri) | `frontend/e2e` (Playwright) | Giriş, dashboard, ürün oluşturma, stok girişi, sipariş rezervasyonu, işleme alma ve sevk, stok ekranının güncellenmesi, Viewer kısıtlamaları arayüzde **ve** API'de, çıkış, geçersiz kimlik bilgileri. Doğrulamalar durumu API üzerinden geri okur; konsol hataları testi başarısız kılar. | çalışan Docker ortamı |
 
-Commands:
+Komutlar:
 
 ```bash
 cd backend && dotnet test --project tests/InventoryOps.UnitTests
@@ -482,64 +483,64 @@ cd frontend && npm ci && npm test
 cd frontend && npx playwright install chromium && npx playwright test --project=workflows
 ```
 
-No coverage percentage is published; tests target behaviour and failure modes rather than a number. More: [docs/TESTING.md](docs/TESTING.md).
+Kapsam (coverage) yüzdesi yayınlanmaz; testler bir sayıyı değil davranışı ve hata senaryolarını hedefler. Ayrıntılar: [docs/TESTING.md](docs/TESTING.md).
 
 ## 16. CI pipeline
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pushes to `main` and on pull requests, with read-only permissions and SHA-pinned actions:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml), `main`'e yapılan push'larda ve pull request'lerde salt okunur izinlerle ve SHA ile sabitlenmiş action'larla çalışır:
 
-- **Backend:** locked restore → `dotnet format --verify-no-changes` → Release build with analyzers/warnings as errors → unit, architecture and Testcontainers integration tests → NuGet vulnerability scan (incl. transitive).
-- **Frontend:** `npm ci` → Prettier check → ESLint (strict type-checked) → `tsc` → Vitest → production build → `npm audit` (blocking at *high* for production dependencies; full report non-blocking).
-- **Docker:** compose validation with throwaway secrets, API and frontend image builds (no push).
+- **Backend:** locked restore → `dotnet format --verify-no-changes` → analyzer/uyarıların hata sayıldığı Release derlemesi → unit, mimari ve Testcontainers entegrasyon testleri → NuGet zafiyet taraması (transitive dahil).
+- **Frontend:** `npm ci` → Prettier kontrolü → ESLint (strict type-checked) → `tsc` → Vitest → production build → `npm audit` (production bağımlılıkları için *high* seviyesinde engelleyici; tam rapor engelleyici değil).
+- **Docker:** geçici secret'larla compose doğrulaması, API ve frontend imaj derlemeleri (push yok).
 
-Every step was run locally before committing; the workflow itself runs once the repository is pushed to GitHub. There is no deployment job because there is no target environment. Playwright E2E needs the full stack and is run locally (see [docs/TESTING.md](docs/TESTING.md)).
+Her adım commit'ten önce yerelde çalıştırıldı; workflow'un kendisi depo GitHub'a push'landığında çalışır. Hedef bir ortam olmadığı için deployment job'ı yoktur. Playwright E2E tam ortama ihtiyaç duyar ve yerelde çalıştırılır (bkz. [docs/TESTING.md](docs/TESTING.md)).
 
-## 17. Observability
+## 17. Gözlemlenebilirlik
 
-- **Structured logs:** Serilog, compact JSON in containers, one request-completion event per HTTP request (method, path, status, duration, user id).
-- **Correlation ids:** accepted from `X-Correlation-ID` (validated) or generated; returned on every response, included in every log event and every ProblemDetails body, stored on outbox messages, propagated as AMQP `correlation_id` and restored in the consumer's log scope — one id links a UI error to the request, the event and its projection.
-- **Health:** `/api/health/live` (process) and `/api/health/ready` (SQL Server healthy required; Redis/RabbitMQ degrade gracefully). Containers use these for Compose health checks.
-- **Investigating a failure:** take the correlation id from the error toast/response → `docker compose logs api | grep <id>` → for messaging issues inspect `messaging.OutboxMessages` (`Attempts`, `LastError`, `DeadLetteredAt`) and the `inventoryops.activity.dlq` queue.
+- **Yapısal loglar:** Serilog, container'larda compact JSON, her HTTP isteği için bir tamamlanma olayı (method, path, status, süre, kullanıcı id'si).
+- **Correlation id'ler:** `X-Correlation-ID` başlığından (doğrulanarak) alınır veya üretilir; her yanıtta döner, her log olayına ve her ProblemDetails gövdesine eklenir, outbox mesajlarında saklanır, AMQP `correlation_id` olarak taşınır ve tüketicinin log scope'unda geri yüklenir — tek bir id, arayüzdeki bir hatayı isteğe, olaya ve projeksiyonuna bağlar.
+- **Health:** `/api/health/live` (süreç) ve `/api/health/ready` (SQL Server sağlıklı olmalı; Redis/RabbitMQ zarifçe degrade olur). Container'lar bunları Compose health check'leri için kullanır.
+- **Bir hatayı incelemek:** hata bildiriminden/yanıttan correlation id'yi alın → `docker compose logs api | grep <id>` → mesajlaşma sorunları için `messaging.OutboxMessages` (`Attempts`, `LastError`, `DeadLetteredAt`) tablosunu ve `inventoryops.activity.dlq` kuyruğunu inceleyin.
 
-## 18. Performance and reliability
+## 18. Performans ve güvenilirlik
 
-- Server-side pagination everywhere (max 100 rows), allow-listed sorting with a deterministic tiebreaker, projections straight into DTOs with `AsNoTracking`, no N+1 queries (order lists use correlated aggregates in one query; user roles are joined in one query).
-- Indexes for each list's filter/sort pattern; filtered index for the outbox polling query; orders clustered on the monotonically increasing number.
-- `READ_COMMITTED_SNAPSHOT` keeps reads from blocking on stock writes.
-- Bounded optimistic-concurrency retries (6 attempts, jittered exponential backoff) for row-version conflicts and deadlocks; deterministic product ordering when reserving several lines.
-- Cache-aside for product details, categories and the dashboard summary.
-- Outbox batches (50), leases with `READPAST` so several API instances can dispatch concurrently, publish timeout, bounded retries.
-- Route-level code splitting in the SPA, immutable caching of fingerprinted assets.
+- Her yerde sunucu tarafı sayfalama (en fazla 100 satır), deterministik ikincil sıralamalı izin listesi tabanlı sıralama, `AsNoTracking` ile doğrudan DTO'lara projeksiyon, N+1 sorgu yok (sipariş listeleri tek sorguda ilişkili agregasyon kullanır; kullanıcı rolleri tek sorguda join edilir).
+- Her listenin filtre/sıralama desenine uygun indeksler; outbox sorgusu için filtreli indeks; siparişler monoton artan numaraya göre cluster'lanır.
+- `READ_COMMITTED_SNAPSHOT`, okumaların stok yazmalarını beklemesini önler.
+- Row version çakışmaları ve deadlock'lar için sınırlı iyimser eşzamanlılık denemeleri (6 deneme, jitter'lı üstel bekleme); çok satırlı rezervasyonda deterministik ürün sırası.
+- Ürün detayları, kategoriler ve dashboard özeti için cache-aside.
+- Outbox batch'leri (50), `READPAST` ile kiralama sayesinde birden fazla API instance'ı eşzamanlı dağıtım yapabilir, yayın timeout'u, sınırlı denemeler.
+- SPA'da route bazlı code splitting, fingerprint'li varlıkların değişmez cache'lenmesi.
 
-No performance numbers are claimed: no load tests or benchmarks have been run.
+Performans rakamı iddia edilmez: yük testi veya benchmark yapılmamıştır.
 
-## 19. Engineering trade-offs
+## 19. Mühendislik ödünleşimleri
 
-- **No microservices:** one transaction for "validate + reserve + create order" beats a saga for this problem size. Modules keep boundaries so extraction stays possible.
-- **No Kubernetes:** Compose demonstrates the runtime topology; orchestration adds nothing without a real deployment target.
-- **No CQRS framework or MediatR:** read stores and explicit handlers give the same separation with less indirection ([ADR 0005](docs/adr/0005-explicit-handlers.md)).
-- **SQL Server owns stock consistency:** row versions + check constraints in one ACID store; Redis never holds authoritative stock.
-- **RabbitMQ is not used for reservations:** a synchronous answer ("reserved or not") is required at submit time; messaging would add latency and failure modes to the critical path.
-- **Optimistic concurrency instead of pessimistic locks or raw conditional `UPDATE`s:** keeps rules in the domain model; the cost is retries under heavy contention on one SKU ([ADR 0002](docs/adr/0002-optimistic-concurrency-for-stock.md)).
-- **Single shared `DbContext`:** simple cross-module transactions; module isolation enforced by schemas, contracts and tests rather than separate databases.
+- **Mikroservis yok:** bu ölçekteki bir problem için "doğrula + rezerve et + sipariş oluştur" işinin tek transaction'da yapılması saga'dan daha iyidir. Modüller sınırlarını korur, böylece ayrıştırma mümkün kalır.
+- **Kubernetes yok:** Compose çalışma zamanı topolojisini gösterir; gerçek bir dağıtım hedefi olmadan orkestrasyon bir şey katmaz.
+- **CQRS framework'ü veya MediatR yok:** read store'lar ve açık handler'lar aynı ayrımı daha az dolaylılıkla sağlar ([ADR 0005](docs/adr/0005-explicit-handlers.md)).
+- **Stok tutarlılığından SQL Server sorumlu:** tek ACID depoda row version'lar + check constraint'ler; Redis asla yetkili stok tutmaz.
+- **Rezervasyonlarda RabbitMQ kullanılmaz:** gönderim anında senkron bir yanıt ("rezerve edildi mi") gerekir; mesajlaşma kritik yola gecikme ve hata modları ekler.
+- **Pessimistic kilitler veya ham koşullu `UPDATE`'ler yerine iyimser eşzamanlılık:** kuralları domain modelinde tutar; bedeli tek bir SKU üzerinde yoğun çekişmede yeniden denemelerdir ([ADR 0002](docs/adr/0002-optimistic-concurrency-for-stock.md)).
+- **Tek ortak `DbContext`:** basit modüller arası transaction'lar; modül izolasyonu ayrı veritabanlarıyla değil, şemalar, sözleşmeler ve testlerle sağlanır.
 
-## 20. Limitations and future improvements
+## 20. Kısıtlar ve gelecek iyileştirmeler
 
-Current limitations (deliberate or not yet done):
+Mevcut kısıtlar (bilinçli veya henüz yapılmamış):
 
-- The order form loads up to 100 active products (the API page-size limit); a searchable product picker is the next step.
-- Product edits are last-write-wins between two users editing the same form (no `ETag`/`If-Match`); server-side writes themselves are protected by row versions.
-- No self-service password change or reset, no e-mail flows, no MFA; admins set initial passwords.
-- Categories can be created via the API but have no management screen; there is no product image or attribute support.
-- Parked outbox messages and DLQ messages need manual investigation/replay (no tooling); outbox/inbox tables have no retention job yet.
-- No message ordering guarantee across events; consumers must stay order-insensitive.
-- Single warehouse, single currency per order, no returns/back-orders/partial fulfilment.
-- The local stack runs over plain HTTP; TLS termination is expected in front of nginx in any real deployment (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
-- Dev-only npm advisory: ESLint 9 depends on a `minimatch` version with a ReDoS advisory (development tooling only; production dependencies audit clean).
-- The CI workflow has been validated step by step locally, not yet on GitHub-hosted runners.
+- Sipariş formu en fazla 100 aktif ürün yükler (API'nin sayfa boyutu sınırı); bir sonraki adım aranabilir bir ürün seçicidir.
+- Aynı formu düzenleyen iki kullanıcı arasında ürün düzenlemelerinde son yazan kazanır (`ETag`/`If-Match` yok); sunucu tarafı yazmaların kendisi row version'larla korunur.
+- Kullanıcının kendi parolasını değiştirmesi/sıfırlaması, e-posta akışları ve MFA yok; ilk parolaları admin'ler belirler.
+- Kategoriler API üzerinden oluşturulabilir ancak yönetim ekranı yoktur; ürün görseli veya özellik desteği yoktur.
+- Park edilmiş outbox mesajları ve DLQ mesajları manuel inceleme/yeniden gönderme gerektirir (araç yok); outbox/inbox tabloları için henüz saklama (retention) job'ı yoktur.
+- Olaylar arasında sıralama garantisi yoktur; tüketiciler sıralamadan bağımsız kalmalıdır.
+- Tek depo, sipariş başına tek para birimi, iade/bekleyen sipariş/kısmi sevk yok.
+- Yerel ortam düz HTTP üzerinde çalışır; gerçek bir dağıtımda nginx'in önünde TLS sonlandırması beklenir (bkz. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
+- Data-protection anahtarları veritabanında şifrelenmeden saklanır; production için sertifika veya key vault ile koruma eklenmelidir.
+- Yalnızca geliştirme ortamına ait npm uyarısı: ESLint 9, ReDoS uyarısı bulunan bir `minimatch` sürümüne bağımlıdır (yalnızca geliştirme araçları; production bağımlılık denetimi temizdir).
 
-Future improvements: searchable product picker, ETags for edits, outbox/inbox retention and a replay tool, OpenTelemetry traces/metrics, password management and MFA, multi-warehouse stock, partial fulfilment, load testing.
+Gelecek iyileştirmeler: aranabilir ürün seçici, düzenlemeler için ETag'ler, outbox/inbox saklama süresi ve yeniden gönderme aracı, OpenTelemetry trace/metrikleri, parola yönetimi ve MFA, çoklu depo stoğu, kısmi sevk, yük testleri.
 
-## 21. License
+## 21. Lisans
 
 [MIT](LICENSE)
