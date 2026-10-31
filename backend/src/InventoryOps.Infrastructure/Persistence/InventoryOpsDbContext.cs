@@ -9,6 +9,7 @@ using InventoryOps.Domain.Orders;
 using InventoryOps.Infrastructure.Identity;
 using InventoryOps.Infrastructure.Messaging;
 using InventoryOps.Infrastructure.Persistence.Configurations;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,7 @@ public sealed class InventoryOpsDbContext(
     DbContextOptions<InventoryOpsDbContext> options,
     ICurrentUser currentUser,
     CorrelationContext correlation)
-    : IdentityDbContext<ApplicationUser, IdentityRole, string>(options)
+    : IdentityDbContext<ApplicationUser, IdentityRole, string>(options), IDataProtectionKeyContext
 {
     private static readonly JsonSerializerOptions PayloadJson = new(JsonSerializerDefaults.Web);
 
@@ -38,6 +39,9 @@ public sealed class InventoryOpsDbContext(
     public DbSet<ActivityEntry> ActivityEntries => Set<ActivityEntry>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
+    /// <summary>ASP.NET Core data-protection keys (cookie and antiforgery encryption), shared by all API instances.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

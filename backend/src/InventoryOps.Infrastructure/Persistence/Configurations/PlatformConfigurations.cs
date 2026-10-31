@@ -1,6 +1,7 @@
 using InventoryOps.Domain.Activity;
 using InventoryOps.Infrastructure.Identity;
 using InventoryOps.Infrastructure.Messaging;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -89,4 +90,14 @@ internal sealed class IdentityTablesConfiguration :
     public void Configure(EntityTypeBuilder<IdentityUserToken<string>> builder) => builder.ToTable("UserTokens", Schemas.Identity);
 
     public void Configure(EntityTypeBuilder<IdentityRoleClaim<string>> builder) => builder.ToTable("RoleClaims", Schemas.Identity);
+}
+
+internal sealed class DataProtectionKeyConfiguration : IEntityTypeConfiguration<DataProtectionKey>
+{
+    public void Configure(EntityTypeBuilder<DataProtectionKey> builder)
+    {
+        builder.ToTable("DataProtectionKeys", Schemas.Identity);
+        builder.Property(k => k.FriendlyName).HasMaxLength(256);
+        builder.Property(k => k.Xml).HasColumnType("nvarchar(max)");
+    }
 }

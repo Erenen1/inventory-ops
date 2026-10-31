@@ -7,6 +7,7 @@ using InventoryOps.Application.Modules.Identity;
 using InventoryOps.Infrastructure;
 using InventoryOps.Infrastructure.Identity;
 using InventoryOps.Infrastructure.Persistence;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.OpenApi;
@@ -85,6 +86,10 @@ internal static class ApiServiceRegistration
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<InventoryOpsDbContext>()
             .AddSignInManager<AppSignInManager>();
+
+        // Keys live in SQL Server so cookies and CSRF tokens survive container re-creation and work across instances.
+        // They are not encrypted at rest here; production should add ProtectKeysWith* (certificate or key vault).
+        services.AddDataProtection().SetApplicationName("InventoryOps").PersistKeysToDbContext<InventoryOpsDbContext>();
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
 
