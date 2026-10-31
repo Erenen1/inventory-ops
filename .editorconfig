@@ -1,0 +1,82 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{csproj,props,targets,slnx,xml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Language conventions
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+csharp_prefer_braces = when_multiline:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+
+# Naming: private fields are _camelCase
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_style.underscore_camel.required_prefix = _
+
+# Analyzer tuning (each suppression is deliberate)
+# CA1848: LoggerMessage delegates add ceremony; structured templates are used everywhere instead.
+dotnet_diagnostic.CA1848.severity = none
+# CA1711/CA1716/CA1720: domain names such as "Order", "Shared" and "Ensure" are intentional.
+dotnet_diagnostic.CA1716.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1720.severity = none
+# CA2007: ASP.NET Core has no synchronization context; ConfigureAwait(false) is noise here.
+dotnet_diagnostic.CA2007.severity = none
+# CA1062: nullable reference types already guard public API arguments.
+dotnet_diagnostic.CA1062.severity = none
+# CA1515: public types are required for cross-project use and tests.
+dotnet_diagnostic.CA1515.severity = none
+# CA1819: properties returning arrays are fine for immutable DTO payloads.
+dotnet_diagnostic.CA1819.severity = none
+# CA1305/CA1307/CA1309/CA1310/CA1311: culture-specific APIs are not used for user-visible formatting.
+dotnet_diagnostic.CA1305.severity = suggestion
+dotnet_diagnostic.CA1307.severity = suggestion
+dotnet_diagnostic.CA1308.severity = none
+dotnet_diagnostic.CA1309.severity = suggestion
+dotnet_diagnostic.CA1311.severity = suggestion
+# CA1031: background workers must catch broad exceptions to stay alive; each site logs.
+dotnet_diagnostic.CA1031.severity = suggestion
+# CA1812: internal types instantiated via DI are flagged incorrectly.
+dotnet_diagnostic.CA1812.severity = none
+# CA1724: type names that match framework namespaces (e.g. "Inventory") are acceptable.
+dotnet_diagnostic.CA1724.severity = none
+# CA1032/CA1064: domain exceptions intentionally expose only meaningful constructors.
+dotnet_diagnostic.CA1032.severity = none
+dotnet_diagnostic.CA1064.severity = none
+# CA1707: test method names use underscores.
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA1001.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA5394.severity = none

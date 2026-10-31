@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/InventoryOps.Domain/InventoryOps.Domain.csproj" />
+    <Project Path="src/InventoryOps.Application/InventoryOps.Application.csproj" />
+    <Project Path="src/InventoryOps.Infrastructure/InventoryOps.Infrastructure.csproj" />
+    <Project Path="src/InventoryOps.Api/InventoryOps.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/InventoryOps.UnitTests/InventoryOps.UnitTests.csproj" />
+    <Project Path="tests/InventoryOps.IntegrationTests/InventoryOps.IntegrationTests.csproj" />
+    <Project Path="tests/InventoryOps.ArchitectureTests/InventoryOps.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>
