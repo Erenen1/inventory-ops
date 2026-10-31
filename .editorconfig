@@ -81,6 +81,8 @@ dotnet_diagnostic.CA2000.severity = none
 dotnet_diagnostic.CA1001.severity = none
 dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.CA5394.severity = none
+# xUnit1051: integration tests rely on HTTP timeouts rather than threading test cancellation everywhere.
+dotnet_diagnostic.xUnit1051.severity = suggestion
 
 # EF Core migrations are generated code: exclude them from analyzers and style rules.
 [**/Migrations/*.cs]

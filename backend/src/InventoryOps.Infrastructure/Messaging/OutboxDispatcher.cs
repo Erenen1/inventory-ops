@@ -21,6 +21,9 @@ public sealed class OutboxOptions
     public int MaxAttempts { get; set; } = 10;
 
     public TimeSpan MaxBackoff { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Upper bound for waiting on a publisher confirm; a hung broker is treated as unavailable.</summary>
+    public TimeSpan PublishTimeout { get; set; } = TimeSpan.FromSeconds(10);
 }
 
 /// <summary>
@@ -100,7 +103,9 @@ internal sealed class OutboxDispatcher(
             {
                 try
                 {
-                    await PublishAsync(channel, message, cancellationToken);
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeout.CancelAfter(_options.PublishTimeout);
+                    await PublishAsync(channel, message, timeout.Token);
                     message.ProcessedAt = clock.GetUtcNow();
                     message.LastError = null;
                 }
@@ -111,7 +116,7 @@ internal sealed class OutboxDispatcher(
                 }
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException and not PublishException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not PublishException)
         {
             // Broker or connection failure: not the message's fault, so attempts are not consumed and
             // messages simply stay pending until the broker is reachable again.
