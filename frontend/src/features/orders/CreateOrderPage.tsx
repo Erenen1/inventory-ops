@@ -212,7 +212,9 @@ export function CreateOrderPage() {
                 <div className="flex justify-between">
                   <span className="text-zinc-500">Units</span>
                   <span className="tabular">
-                    {formatNumber(lines.reduce((s, l) => s + (Number.isFinite(l.quantity) ? l.quantity : 0), 0))}
+                    {formatNumber(
+                      lines.reduce((s, l) => s + (l.productId && Number.isFinite(l.quantity) ? l.quantity : 0), 0),
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between border-t border-zinc-100 pt-3 text-base font-semibold">
