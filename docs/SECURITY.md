@@ -1,0 +1,75 @@
+# Security
+
+This document describes the security design, how it is verified, and what is known to be missing. Baselines used for review: OWASP API Security Top 10 (2023) and the ASP.NET Core security guidance.
+
+## Threat model (summary)
+
+| Asset | Threat | Control |
+|---|---|---|
+| Stock and order integrity | Race conditions, replayed submissions, invalid transitions | Row-version concurrency + retries, check constraints, idempotency keys, domain state machine |
+| User sessions | Credential stuffing, session theft, CSRF | Lockout, login rate limit, HttpOnly/SameSite=Strict cookie, antiforgery tokens, security-stamp revalidation |
+| Authorization | Viewer performing writes, manager escalating to admin | Role policies on every endpoint, fallback policy, admin-only user management, self-demotion and last-admin guards |
+| Data in requests | Mass assignment, injection, oversized/expensive queries | Unknown JSON properties rejected, validators, parameterised SQL, allow-listed sort fields, page-size and body-size limits |
+| Infrastructure | Exposed databases/brokers, leaked secrets | Internal Docker network, only the frontend port published (loopback), generated secrets in a git-ignored `.env`, least-privilege SQL login |
+
+## OWASP API Security Top 10 mapping
+
+| Risk | Status |
+|---|---|
+| API1 Broken object level authorization | All business data is shared within the organisation by design; access is role-based. User administration is admin-only. There are no per-user private resources besides the session itself. |
+| API2 Broken authentication | Identity password hashing, lockout (5 attempts / 15 min), per-IP login limit, generic error messages and timing-equalised unknown-account handling, session revalidation every minute. |
+| API3 Broken object property level authorization | Commands contain only writable fields; `UnmappedMemberHandling.Disallow` rejects extra properties (`400 malformed_request`); responses are DTO projections (no password hashes, stamps or row versions). |
+| API4 Unrestricted resource consumption | Page size ≤ 100, search ≤ 100 chars, request body ≤ 1 MB (Kestrel + nginx), order ≤ 50 lines, global per-user/IP token bucket (600/min). |
+| API5 Broken function level authorization | Policies `CanRead`, `CanOperate`, `CanViewActivity`, `CanManageUsers`; fallback policy requires authentication. Covered by a role matrix integration test. |
+| API6 Unrestricted access to sensitive business flows | Idempotent order submission; stock checks in the transaction; login rate limit. No bot detection (out of scope). |
+| API7 SSRF | The API makes no outbound requests based on user input. |
+| API8 Security misconfiguration | Security headers on API and SPA, no server header, OpenAPI only when enabled, no stack traces in responses, non-root containers, internal network. |
+| API9 Improper inventory management | Single versioned API surface (`/api/v1`), OpenAPI document generated from code. |
+| API10 Unsafe consumption of APIs | Message consumer validates envelopes and payloads; malformed messages are dead-lettered. |
+
+## Authentication and session details
+
+- Cookie `.InventoryOps.Session`: HttpOnly, `SameSite=Strict`, `Secure` when `Security:RequireHttpsCookies=true` (default; the local Compose stack sets it to `false` because it serves plain HTTP on localhost). 8 hour sliding expiry, non-persistent.
+- `POST /auth/login` requires a valid antiforgery token (prevents login CSRF). After sign-in a new token bound to the new identity is issued.
+- `GET /auth/me` returns the user, role and derived permissions and refreshes the `XSRF-TOKEN` cookie.
+- Role changes and deactivation update the security stamp; `SecurityStampValidator` re-checks every minute, so revoked sessions end within about a minute. Deactivated users fail `CanSignInAsync`.
+- No endpoint can create the first administrator. The migrator creates it from `Bootstrap:AdminEmail/AdminPassword` only if that account does not exist yet; there is no default password.
+
+## CSRF
+
+Cookie authentication needs CSRF protection. ASP.NET Core antiforgery issues a cookie token (HttpOnly) and a request token; the request token is exposed to the SPA as the `XSRF-TOKEN` cookie (readable, `SameSite=Strict`) and must be echoed in the `X-XSRF-TOKEN` header. `AntiforgeryValidationMiddleware` validates every non-GET/HEAD/OPTIONS request under `/api/v1`. Tests cover missing tokens, forged tokens and a token belonging to another session.
+
+## Database access
+
+- Runtime login `inventoryops_app`: `db_datareader`, `db_datawriter`, `UPDATE` on `orders.OrderNumbers`. It cannot alter schema or create logins.
+- `sa` is used only by the one-shot migrator.
+- All queries go through EF Core with parameters. The two raw SQL statements (outbox claim, login provisioning) use interpolated `FromSql`/`ExecuteSqlAsync`, which parameterise values; identifiers in the login script are quoted with `QUOTENAME`.
+
+## Secrets management
+
+- `.env` is generated by `scripts/bootstrap.sh|.ps1` with 27-character random passwords (CSPRNG, rejection sampling in PowerShell) and is ignored by Git and Docker builds.
+- Compose fails fast (`${VAR:?…}`) when a required secret is missing.
+- Connection strings and passwords are never logged; Redis errors log key names only.
+- Production would use a secret store (e.g. a cloud key vault or orchestrator secrets) instead of a `.env` file.
+- Data-protection keys (cookie and antiforgery encryption) are persisted in `identity.DataProtectionKeys` so sessions survive restarts and work across instances; they are not encrypted at rest yet (production: `ProtectKeysWithCertificate` or a key-vault key).
+
+## Headers
+
+- API: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy`/`-Resource-Policy: same-origin`, `Permissions-Policy`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (except the docs page), `Cache-Control: no-store`.
+- SPA (nginx): CSP `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; …; frame-ancestors 'none'`. `'unsafe-inline'` for styles is required by runtime style attributes from Radix, Recharts and Sonner; no inline or third-party scripts are allowed.
+
+## Dependency and image hygiene
+
+- NuGet audit runs on every restore (all severities, warnings as errors). A vulnerable transitive `System.Security.Cryptography.Pkcs` brought in by `Microsoft.Data.SqlClient` is pinned to a patched version via central package management.
+- `dotnet list package --vulnerable --include-transitive`: no findings at the time of writing.
+- `npm audit --omit=dev`: 0 vulnerabilities. Full `npm audit` reports moderate advisories in development tooling only (`minimatch` inside ESLint 9); accepted because it never ships to users.
+- Runtime images: chiseled .NET (no shell/package manager, non-root) and `nginx-unprivileged`. Images are not yet scanned in CI (e.g. Trivy) — listed as a follow-up.
+
+## Known limitations
+
+- No MFA, password change/reset or account recovery flows.
+- Login rate limiting is per IP; clients behind one NAT share a budget. Lockout can be used to lock a known account for 15 minutes (standard trade-off of lockout).
+- Health endpoints are anonymous (status only, no details).
+- The local stack uses HTTP; production requires TLS termination in front of nginx and `REQUIRE_HTTPS_COOKIES=true`.
+- No audit log of administrative actions beyond application logs (user changes are not in the activity feed).
+- No external penetration test has been performed.
