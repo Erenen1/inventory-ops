@@ -75,7 +75,7 @@ dotnet_diagnostic.CA1724.severity = none
 dotnet_diagnostic.CA1032.severity = none
 dotnet_diagnostic.CA1064.severity = none
 # CA1707: test method names use underscores.
-[tests/**.cs]
+[backend/tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA2000.severity = none
 dotnet_diagnostic.CA1001.severity = none

@@ -5,7 +5,6 @@ using InventoryOps.Application.Common.Persistence;
 using InventoryOps.Application.Modules.Inventory.Contracts;
 using InventoryOps.Domain.Catalog;
 using InventoryOps.Domain.Common;
-using InventoryOps.Domain.Inventory;
 
 namespace InventoryOps.Application.Modules.Catalog;
 
@@ -37,7 +36,7 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
         RuleFor(x => x.Sku).NotEmpty().MaximumLength(Sku.MaxLength).Matches("^[A-Za-z0-9][A-Za-z0-9-]{1,30}[A-Za-z0-9]$")
             .WithMessage("SKU must be 3-32 letters, digits or dashes and start/end with a letter or digit.");
         this.ApplyDetailRules(x => x.Name, x => x.Description, x => x.CategoryId, x => x.UnitPrice, x => x.Currency);
-        RuleFor(x => x.ReorderThreshold).InclusiveBetween(0, InventoryItem.MaxQuantity);
+        RuleFor(x => x.ReorderThreshold).InclusiveBetween(0, InventoryLimits.MaxQuantity);
     }
 }
 

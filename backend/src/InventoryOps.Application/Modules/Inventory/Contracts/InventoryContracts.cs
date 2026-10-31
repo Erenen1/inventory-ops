@@ -20,3 +20,8 @@ public interface IInventoryProvisioning
 {
     void Provision(Guid productId, int reorderThreshold, DateTimeOffset now);
 }
+
+public static class InventoryLimits
+{
+    public const int MaxQuantity = Domain.Inventory.InventoryItem.MaxQuantity;
+}
