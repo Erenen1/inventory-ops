@@ -57,8 +57,18 @@ internal sealed class InventoryReadStore(InventoryOpsDbContext db) : IInventoryR
                 orderby m.OccurredAt descending, m.Id descending
                 select new
                 {
-                    m.Id, m.Type, m.OnHandChange, m.ReservedChange, m.OnHandAfter, m.ReservedAfter, m.Reason, m.Note, m.OrderId,
-                    OrderNumber = (long?)o.Number, m.PerformedBy, m.OccurredAt,
+                    m.Id,
+                    m.Type,
+                    m.OnHandChange,
+                    m.ReservedChange,
+                    m.OnHandAfter,
+                    m.ReservedAfter,
+                    m.Reason,
+                    m.Note,
+                    m.OrderId,
+                    OrderNumber = (long?)o.Number,
+                    m.PerformedBy,
+                    m.OccurredAt,
                 })
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

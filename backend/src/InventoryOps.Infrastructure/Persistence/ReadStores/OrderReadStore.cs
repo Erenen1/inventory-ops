@@ -50,10 +50,17 @@ internal sealed class OrderReadStore(InventoryOpsDbContext db) : IOrderReadStore
             .Take(query.PageSize)
             .Select(o => new
             {
-                o.Id, o.Number, o.CustomerName, o.Status,
+                o.Id,
+                o.Number,
+                o.CustomerName,
+                o.Status,
                 LineCount = o.Lines.Count,
                 TotalQuantity = o.Lines.Sum(l => l.Quantity),
-                o.TotalAmount, o.Currency, o.CreatedBy, o.CreatedAt, o.UpdatedAt,
+                o.TotalAmount,
+                o.Currency,
+                o.CreatedBy,
+                o.CreatedAt,
+                o.UpdatedAt,
             })
             .ToListAsync(cancellationToken);
 
@@ -71,7 +78,16 @@ internal sealed class OrderReadStore(InventoryOpsDbContext db) : IOrderReadStore
             .Where(o => o.Id == id)
             .Select(o => new
             {
-                o.Id, o.Number, o.CustomerName, o.Notes, o.Status, o.TotalAmount, o.Currency, o.CreatedBy, o.CreatedAt, o.UpdatedAt,
+                o.Id,
+                o.Number,
+                o.CustomerName,
+                o.Notes,
+                o.Status,
+                o.TotalAmount,
+                o.Currency,
+                o.CreatedBy,
+                o.CreatedAt,
+                o.UpdatedAt,
                 o.CancellationReason,
                 Lines = o.Lines.OrderBy(l => l.Sku)
                     .Select(l => new OrderLineDto(l.Id, l.ProductId, l.Sku, l.ProductName, l.UnitPrice, l.Quantity, l.LineTotal))

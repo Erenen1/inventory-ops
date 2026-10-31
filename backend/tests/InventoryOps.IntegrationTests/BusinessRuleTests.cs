@@ -31,7 +31,11 @@ public sealed class BusinessRuleTests(InfrastructureFixture fixture) : IAsyncLif
 
         var update = await _manager.PutAsync($"/api/v1/products/{id}", new
         {
-            name = "Renamed widget", description = "Updated", categoryId, unitPrice = 24.50m, currency = "USD",
+            name = "Renamed widget",
+            description = "Updated",
+            categoryId,
+            unitPrice = 24.50m,
+            currency = "USD",
         });
         await update.ShouldHaveStatusAsync(HttpStatusCode.NoContent);
         await (await _manager.PostAsync($"/api/v1/products/{id}/deactivate")).ShouldHaveStatusAsync(HttpStatusCode.NoContent);
@@ -65,8 +69,14 @@ public sealed class BusinessRuleTests(InfrastructureFixture fixture) : IAsyncLif
 
         var response = await _manager.PostAsync("/api/v1/products", new
         {
-            sku = TestData.UniqueSku(), name = "x", categoryId, unitPrice = 1m, currency = "USD", reorderThreshold = 1,
-            isActive = false, id = Guid.NewGuid(),
+            sku = TestData.UniqueSku(),
+            name = "x",
+            categoryId,
+            unitPrice = 1m,
+            currency = "USD",
+            reorderThreshold = 1,
+            isActive = false,
+            id = Guid.NewGuid(),
         });
 
         await response.ShouldHaveStatusAsync(HttpStatusCode.BadRequest);
@@ -88,7 +98,13 @@ public sealed class BusinessRuleTests(InfrastructureFixture fixture) : IAsyncLif
     {
         var response = await _manager.PostAsync("/api/v1/products", new
         {
-            sku = "!", name = "", description = (string?)null, categoryId = Guid.Empty, unitPrice = -1m, currency = "ABC", reorderThreshold = -1,
+            sku = "!",
+            name = "",
+            description = (string?)null,
+            categoryId = Guid.Empty,
+            unitPrice = -1m,
+            currency = "ABC",
+            reorderThreshold = -1,
         });
 
         await response.ShouldHaveStatusAsync(HttpStatusCode.BadRequest);
